@@ -1,6 +1,6 @@
 import { middleOfUSA } from "./constants";
 
-export interface IpWhoisResponse {
+export interface LocationResponse {
   About_Us: string;
   ip: string;
   success: boolean;
@@ -44,7 +44,7 @@ export interface IpWhoisResponse {
 export async function getLocation() {
   try {
     const response = await fetch("https://ipwho.is/");
-    const json = (await response.json() as IpWhoisResponse);
+    const json = (await response.json() as LocationResponse);
     if (typeof json.latitude === "number" && typeof json.longitude === "number") {
       return [json.longitude, json.latitude];
     }
