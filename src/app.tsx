@@ -1,9 +1,11 @@
 import { Map } from '@vis.gl/react-maplibre';
 import { middleOfUSA } from './lib/constants';
 import YouAreHere from './components/you-are-here';
+import LeftCard from './components/left-card';
 
 export default function App() {
   return (
+    <>
     <Map
       initialViewState={{
         longitude: middleOfUSA[0],
@@ -15,5 +17,7 @@ export default function App() {
     >
       <YouAreHere />
     </Map>
+    <LeftCard />
+    </>
   );
 }
