@@ -1,6 +1,12 @@
+import {
+  Checkbox,
+  FormControlLabel,
+  ListItem,
+  Stack,
+  TextField,
+} from "@mui/material";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
 
 export default function LeftCard() {
   return (
@@ -13,14 +19,21 @@ export default function LeftCard() {
         boxShadow: 4,
         borderRadius: 2,
         backgroundColor: "white",
-        zIndex: 1,
       }}
     >
       <CardContent>
-        <Typography variant="h6">Map Info</Typography>
-        <Typography variant="body2" color="text.secondary">
-          You can put stats, buttons, or filters here.
-        </Typography>
+        <Stack spacing={1}>
+          <ListItem>
+            <FormControlLabel
+              control={<Checkbox defaultChecked />}
+              label="Loop"
+            />
+          </ListItem>
+          <ListItem>
+            <TextField label="Beginning" />
+            <TextField label="Destination" />
+          </ListItem>
+        </Stack>
       </CardContent>
     </Card>
   );
