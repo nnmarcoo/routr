@@ -22,6 +22,7 @@ export async function geocode(query: string): Promise<PhotonResult[]> {
   const res = await fetch(
     `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
   );
+  
   const data = (await res.json()) as PhotonFeatureCollection;
   if (!data.features) return [];
 
