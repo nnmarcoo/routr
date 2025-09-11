@@ -41,9 +41,14 @@ export default function LeftCard() {
               sx={{ width: "100%" }}
               options={startLocations}
               getOptionLabel={(option) => option.name}
-              renderOption={(props, option) => (
-                <li {...props}>{option.name}</li>
-              )}
+              filterOptions={(x) => x}
+              renderOption={(props, option) => {
+                return (
+                  <li {...props} key={option.id}>
+                    {option.name}
+                  </li>
+                );
+              }}
               onInputChange={async (_, input) => {
                 const newLocations = await geocode(input);
                 if (newLocations.length == 0) return;
@@ -67,9 +72,14 @@ export default function LeftCard() {
               sx={{ width: "100%" }}
               options={endLocations}
               getOptionLabel={(option) => option.name}
-              renderOption={(props, option) => (
-                <li {...props}>{option.name}</li>
-              )}
+              filterOptions={(x) => x}
+              renderOption={(props, option) => {
+                return (
+                  <li {...props} key={option.id}>
+                    {option.name}
+                  </li>
+                );
+              }}
               onInputChange={async (_, input) => {
                 const newLocations = await geocode(input);
                 if (newLocations.length == 0) return;

@@ -55,8 +55,5 @@ export interface PhotonFeatureCollection {
 export interface PhotonResult {
   id: number;
   name: string;
-  city: string;
-  state: string;
-  country: string;
   coordinates: [number, number];
 }

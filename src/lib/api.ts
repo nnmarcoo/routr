@@ -4,6 +4,7 @@ import {
   PhotonResult,
 } from "../types";
 import { middleOfUSA } from "./constants";
+import { formatPhotonLocation } from "./help";
 
 export async function getLocation() {
   try {
@@ -18,22 +19,17 @@ export async function getLocation() {
 }
 
 export async function geocode(query: string): Promise<PhotonResult[]> {
-  // fix duplicates
   const res = await fetch(
     `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
   );
   const data = (await res.json()) as PhotonFeatureCollection;
   if (!data.features) return [];
 
-  return data.features.map(
-    (item) =>
-      ({
-        coordinates: item.geometry.coordinates,
-        name: item.properties.name,
-        city: item.properties.city,
-        state: item.properties.state,
-        country: item.properties.country,
-        id: item.properties.osm_id,
-      }) as PhotonResult,
-  );
+  const results = data.features.map((item) => ({
+    id: item.properties.osm_id,
+    coordinates: item.geometry.coordinates,
+    name: formatPhotonLocation(item),
+  }));
+
+  return Array.from(new Map(results.map((r) => [r.id, r])).values());
 }
