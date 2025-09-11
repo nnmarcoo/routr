@@ -20,7 +20,6 @@ export default function LeftCard() {
   if (!map || !start) return;
   (async () => {
     const coords = await geocode(start);
-    console.log(coords);
     if (coords)
       map.flyTo({ center: coords, zoom: 10 });
   })();
