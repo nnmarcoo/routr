@@ -6,8 +6,8 @@ export interface LocationResponse {
   regionName: string;
   city: string;
   zip: string;
-  lat: number;
-  lon: number;
+  latitude: number;
+  longitude: number;
   timezone: string;
   isp: string;
   org: string;
