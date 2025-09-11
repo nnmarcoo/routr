@@ -16,8 +16,8 @@ export default function App() {
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
       >
         <YouAreHere />
+        <LeftCard />
       </Map>
-      <LeftCard />
     </>
   );
 }

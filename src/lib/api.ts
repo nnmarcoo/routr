@@ -17,14 +17,41 @@ export interface LocationResponse {
   query: string;
 }
 
+export interface NominatimResult {
+  place_id: number;
+  licence: string;
+  osm_type: string;
+  osm_id: number;
+  lat: string;
+  lon: string;
+  class: string;
+  type: string;
+  place_rank: number;
+  importance: number;
+  addresstype: string;
+  name: string;
+  display_name: string;
+  boundingbox: [string, string, string, string]; // minLat, maxLat, minLon, maxLon
+}
+
 export async function getLocation() {
   try {
-    const response = await fetch("http://ip-api.com/json/");
-    const json = (await response.json()) as LocationResponse;
+    const res = await fetch("http://ip-api.com/json/");
+    const json = (await res.json()) as LocationResponse;
     if (typeof json.lat === "number" && typeof json.lon === "number") {
       return [json.lon, json.lat];
     }
     // eslint-disable-next-line no-empty
   } catch {}
   return middleOfUSA;
+}
+
+export async function geocode(query: string) {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`,
+  );
+  const data = await res.json();
+  if (data.length > 0)
+    return data;
+  return null;
 }
