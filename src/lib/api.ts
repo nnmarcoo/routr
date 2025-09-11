@@ -8,10 +8,10 @@ import { formatPhotonLocation } from "./help";
 
 export async function getLocation() {
   try {
-    const res = await fetch("http://ip-api.com/json/");
-    const json = (await res.json()) as LocationResponse;
-    if (typeof json.lat === "number" && typeof json.lon === "number") {
-      return [json.lon, json.lat];
+    const response = await fetch("https://ipwho.is/");
+    const json = (await response.json() as LocationResponse);
+    if (typeof json.latitude === "number" && typeof json.longitude === "number") {
+      return [json.longitude, json.latitude];
     }
     // eslint-disable-next-line no-empty
   } catch {}
