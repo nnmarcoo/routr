@@ -8,34 +8,18 @@ import {
 } from "@mui/material";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMap } from "@vis.gl/react-maplibre";
 import { geocode } from "../lib/api";
+import { PhotonResult } from "../types";
 
 export default function LeftCard() {
+  const { current: map } = useMap();
+
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const { current: map } = useMap();
-  const [locations, setLocations] = useState([]);
-
-  useEffect(() => {
-  if (!map || !start) return;
-  (async () => {
-    const coords = await geocode(start);
-    console.log(coords);
-    if (coords)
-      map.flyTo({ center: coords, zoom: 10 });
-  })();
-}, [start, map]);
-
-useEffect(() => {
-  if (!map || !end) return;
-  (async () => {
-    const coords = await geocode(end);
-    if (coords)
-      map.flyTo({ center: coords, zoom: 10 });
-  })();
-}, [end, map])
+  const [startLocations, setStartLocations] = useState<PhotonResult[]>([]);
+  const [endLocations, setEndLocations] = useState<PhotonResult[]>([]);
 
   return (
     <Card
@@ -43,34 +27,84 @@ useEffect(() => {
         position: "absolute",
         top: 16,
         left: 16,
-        minWidth: 150,
+        minWidth: 300,
         boxShadow: 4,
         borderRadius: 2,
         backgroundColor: "white",
       }}
     >
       <CardContent>
-        <Stack spacing={0}>
+        <Stack>
+          <ListItem>
+            <Autocomplete
+              id="start"
+              sx={{ width: "100%" }}
+              options={startLocations}
+              getOptionLabel={(option) => option.name}
+              renderOption={(props, option) => {
+                const { key, ...rest } = props;
+                return (
+                  <li key={key} {...rest}>
+                    {option.name}
+                  </li>
+                );
+              }}
+              onInputChange={async (_, input) => {
+                const newLocations = await geocode(input);
+                if (startLocations.length > 0 && newLocations.length == 0)
+                  return;
+
+                setStartLocations(newLocations);
+              }}
+              onChange={(_, value) => {
+                setStart(value?.name || "");
+                if (value?.coordinates && map)
+                  map.flyTo({ center: value.coordinates, zoom: 10 });
+              }}
+              value={
+                startLocations.find((loc) => loc.name === start) || null
+              }
+              renderInput={(params) => <TextField {...params} label="Start" />}
+              forcePopupIcon={false}
+            />
+          </ListItem>
+
+          <ListItem>
+            <Autocomplete
+              id="end"
+              sx={{ width: "100%" }}
+              options={endLocations}
+              getOptionLabel={(option) => option.name}
+              renderOption={(props, option) => {
+                const { key, ...rest } = props;
+                return (
+                  <li key={key} {...rest}>
+                    {option.name}
+                  </li>
+                );
+              }}
+              onInputChange={async (_, input) => {
+                const newLocations = await geocode(input);
+                if (endLocations.length > 0 && newLocations.length == 0) return;
+
+                setEndLocations(newLocations);
+              }}
+              onChange={(_, value) => {
+                setEnd(value?.name || "");
+                if (value?.coordinates && map)
+                  map.flyTo({ center: value.coordinates, zoom: 10 });
+              }}
+              value={
+                endLocations.find((loc) => loc.name === end) || null
+              }
+              renderInput={(params) => <TextField {...params} label="End" />}
+              forcePopupIcon={false}
+            />
+          </ListItem>
           <ListItem>
             <FormControlLabel
               control={<Checkbox defaultChecked />}
               label="Loop"
-            />
-          </ListItem>
-          <ListItem>
-            <Autocomplete>
-              id="start"
-              options={locations}
-              autoHighlight
-              getOptionLabel={(option => option.label)}
-              renderOption={(_, option) => option.label }
-            </Autocomplete>
-          </ListItem>
-          <ListItem>
-            <TextField
-              label="End"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
             />
           </ListItem>
         </Stack>
