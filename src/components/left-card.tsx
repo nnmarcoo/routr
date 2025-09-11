@@ -61,9 +61,7 @@ export default function LeftCard() {
                 if (value?.coordinates && map)
                   map.flyTo({ center: value.coordinates, zoom: 10 });
               }}
-              value={
-                startLocations.find((loc) => loc.name === start) || null
-              }
+              value={startLocations.find((loc) => loc.name === start) || null}
               renderInput={(params) => <TextField {...params} label="Start" />}
               forcePopupIcon={false}
             />
@@ -94,9 +92,7 @@ export default function LeftCard() {
                 if (value?.coordinates && map)
                   map.flyTo({ center: value.coordinates, zoom: 10 });
               }}
-              value={
-                endLocations.find((loc) => loc.name === end) || null
-              }
+              value={endLocations.find((loc) => loc.name === end) || null}
               renderInput={(params) => <TextField {...params} label="End" />}
               forcePopupIcon={false}
             />

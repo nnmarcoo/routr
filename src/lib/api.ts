@@ -1,4 +1,4 @@
-import { LocationResponse, PhotonFeatureCollection } from "../types";
+import { LocationResponse, PhotonFeatureCollection, PhotonResult } from "../types";
 import { middleOfUSA } from "./constants";
 
 export async function getLocation() {
@@ -13,14 +13,18 @@ export async function getLocation() {
   return middleOfUSA;
 }
 
-export async function geocode(query: string) {
+export async function geocode(query: string): Promise<PhotonResult[]> { // fix duplicates
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`,
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
   );
   const data = (await res.json()) as PhotonFeatureCollection;
+  if (!data.features) return [];
 
   return data.features.map((item) => ({
     coordinates: item.geometry.coordinates,
     name: item.properties.name,
-}));
+    city: item.properties.city,
+    state: item.properties.state,
+    country: item.properties.country,
+  }) as PhotonResult);
 }
