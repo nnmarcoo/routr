@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Checkbox,
   FormControlLabel,
   ListItem,
@@ -15,6 +16,7 @@ export default function LeftCard() {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const { current: map } = useMap();
+  const [locations, setLocations] = useState([]);
 
   useEffect(() => {
   if (!map || !start) return;
@@ -56,11 +58,13 @@ useEffect(() => {
             />
           </ListItem>
           <ListItem>
-            <TextField
-              label="Start"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
+            <Autocomplete>
+              id="start"
+              options={locations}
+              autoHighlight
+              getOptionLabel={(option => option.label)}
+              renderOption={(_, option) => option.label }
+            </Autocomplete>
           </ListItem>
           <ListItem>
             <TextField
