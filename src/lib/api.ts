@@ -1,38 +1,10 @@
+import {
+  LocationResponse,
+  PhotonFeatureCollection,
+  PhotonResult,
+} from "../types";
 import { middleOfUSA } from "./constants";
-
-export interface LocationResponse {
-  status: string;
-  country: string;
-  countryCode: string;
-  region: string;
-  regionName: string;
-  city: string;
-  zip: string;
-  lat: number;
-  lon: number;
-  timezone: string;
-  isp: string;
-  org: string;
-  as: string;
-  query: string;
-}
-
-export interface NominatimResult {
-  place_id: number;
-  licence: string;
-  osm_type: string;
-  osm_id: number;
-  lat: string;
-  lon: string;
-  class: string;
-  type: string;
-  place_rank: number;
-  importance: number;
-  addresstype: string;
-  name: string;
-  display_name: string;
-  boundingbox: [string, string, string, string]; // minLat, maxLat, minLon, maxLon
-}
+import { formatPhotonLocation } from "./help";
 
 export async function getLocation() {
   try {
@@ -46,12 +18,19 @@ export async function getLocation() {
   return middleOfUSA;
 }
 
-export async function geocode(query: string) {
+export async function geocode(query: string): Promise<PhotonResult[]> {
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`,
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
   );
-  const data = await res.json();
-  if (data.length > 0)
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon )};
-  return null;
+  
+  const data = (await res.json()) as PhotonFeatureCollection;
+  if (!data.features) return [];
+
+  const results = data.features.map((item) => ({
+    id: item.properties.osm_id,
+    coordinates: item.geometry.coordinates,
+    name: formatPhotonLocation(item),
+  }));
+
+  return Array.from(new Map(results.map((r) => [r.id, r])).values());
 }
