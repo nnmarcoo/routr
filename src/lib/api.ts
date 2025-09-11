@@ -9,8 +9,11 @@ import { formatPhotonLocation } from "./help";
 export async function getLocation() {
   try {
     const response = await fetch("https://ipwho.is/");
-    const json = (await response.json() as LocationResponse);
-    if (typeof json.latitude === "number" && typeof json.longitude === "number") {
+    const json = (await response.json()) as LocationResponse;
+    if (
+      typeof json.latitude === "number" &&
+      typeof json.longitude === "number"
+    ) {
       return [json.longitude, json.latitude];
     }
     // eslint-disable-next-line no-empty
@@ -22,7 +25,7 @@ export async function geocode(query: string): Promise<PhotonResult[]> {
   const res = await fetch(
     `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
   );
-  
+
   const data = (await res.json()) as PhotonFeatureCollection;
   if (!data.features) return [];
 
