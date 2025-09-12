@@ -16,12 +16,12 @@ import { PhotonResult } from "../types";
 export default function LeftCard() {
   const { current: map } = useMap();
 
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [start, setStart] = useState<PhotonResult | null>(null);
+  const [end, setEnd] = useState<PhotonResult | null>(null);
   const [startLocations, setStartLocations] = useState<PhotonResult[]>([]);
   const [endLocations, setEndLocations] = useState<PhotonResult[]>([]);
 
-  const debounceTimeout = useRef(0);
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedGeocode = useCallback(
     (
@@ -32,7 +32,7 @@ export default function LeftCard() {
 
       debounceTimeout.current = setTimeout(async () => {
         const newLocations = await geocode(input);
-        if (newLocations.length > 0) setter(newLocations);
+        setter(newLocations);
       }, 250);
     },
     [],
@@ -57,52 +57,49 @@ export default function LeftCard() {
               id="start"
               sx={{ width: "100%" }}
               options={startLocations}
+              value={start}
               getOptionLabel={(option) => option.name}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               filterOptions={(x) => x}
-              renderOption={(props, option) => {
-                return (
-                  <li {...props} key={option.id}>
-                    {option.name}
-                  </li>
-                );
-              }}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id}>
+                  {option.name}
+                </li>
+              )}
               onInputChange={(_, input) =>
                 debouncedGeocode(input, setStartLocations)
               }
               onChange={(_, value) => {
-                setStart(value?.name || "");
+                setStart(value);
                 if (value?.coordinates && map)
                   map.flyTo({ center: value.coordinates, zoom: 10 });
               }}
-              value={startLocations.find((loc) => loc.name === start) || null}
               renderInput={(params) => <TextField {...params} label="Start" />}
               noOptionsText="Type something!"
             />
           </ListItem>
-
           <ListItem>
             <Autocomplete
               id="end"
               sx={{ width: "100%" }}
               options={endLocations}
+              value={end}
               getOptionLabel={(option) => option.name}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               filterOptions={(x) => x}
-              renderOption={(props, option) => {
-                return (
-                  <li {...props} key={option.id}>
-                    {option.name}
-                  </li>
-                );
-              }}
+              renderOption={(props, option) => (
+                <li {...props} key={option.id}>
+                  {option.name}
+                </li>
+              )}
               onInputChange={(_, input) =>
                 debouncedGeocode(input, setEndLocations)
               }
               onChange={(_, value) => {
-                setEnd(value?.name || "");
+                setEnd(value);
                 if (value?.coordinates && map)
                   map.flyTo({ center: value.coordinates, zoom: 10 });
               }}
-              value={endLocations.find((loc) => loc.name === end) || null}
               renderInput={(params) => <TextField {...params} label="End" />}
               noOptionsText="Type something!"
             />
