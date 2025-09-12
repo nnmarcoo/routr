@@ -62,7 +62,7 @@ export default function LeftCard() {
               }}
               value={startLocations.find((loc) => loc.name === start) || null}
               renderInput={(params) => <TextField {...params} label="Start" />}
-              forcePopupIcon={false}
+              noOptionsText="Type something!"
             />
           </ListItem>
 
@@ -93,7 +93,7 @@ export default function LeftCard() {
               }}
               value={endLocations.find((loc) => loc.name === end) || null}
               renderInput={(params) => <TextField {...params} label="End" />}
-              forcePopupIcon={false}
+              noOptionsText="Type something!"
             />
           </ListItem>
           <ListItem>
