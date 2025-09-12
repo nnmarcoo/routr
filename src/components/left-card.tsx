@@ -24,17 +24,18 @@ export default function LeftCard() {
   const debounceTimeout = useRef(0);
 
   const debouncedGeocode = useCallback(
-    async (input: string) => {
-      if (debounceTimeout.current)
-        clearTimeout(debounceTimeout.current);
-      
-      debounceTimeout.current = setTimeout(async () => { // pass the setter through here so I can use with start and end
+    (
+      input: string,
+      setter: React.Dispatch<React.SetStateAction<PhotonResult[]>>,
+    ) => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+      debounceTimeout.current = setTimeout(async () => {
         const newLocations = await geocode(input);
-        if (newLocations.length > 0)
-          setStartLocations(newLocations);
+        if (newLocations.length > 0) setter(newLocations);
       }, 250);
     },
-    []
+    [],
   );
 
   return (
@@ -65,9 +66,9 @@ export default function LeftCard() {
                   </li>
                 );
               }}
-              onInputChange={async (_, input) => {
-                debouncedGeocode(input);
-              }}
+              onInputChange={(_, input) =>
+                debouncedGeocode(input, setStartLocations)
+              }
               onChange={(_, value) => {
                 setStart(value?.name || "");
                 if (value?.coordinates && map)
@@ -93,14 +94,9 @@ export default function LeftCard() {
                   </li>
                 );
               }}
-              onInputChange={async (_, input) => {
-                
-
-                const newLocations = await geocode(input);
-                if (newLocations.length == 0) return;
-
-                setEndLocations(newLocations);
-              }}
+              onInputChange={(_, input) =>
+                debouncedGeocode(input, setEndLocations)
+              }
               onChange={(_, value) => {
                 setEnd(value?.name || "");
                 if (value?.coordinates && map)
