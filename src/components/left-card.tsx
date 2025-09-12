@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-maplibre";
 import { geocode } from "../lib/api";
 import { PhotonResult } from "../types";
@@ -20,6 +20,22 @@ export default function LeftCard() {
   const [end, setEnd] = useState("");
   const [startLocations, setStartLocations] = useState<PhotonResult[]>([]);
   const [endLocations, setEndLocations] = useState<PhotonResult[]>([]);
+
+  const debounceTimeout = useRef(0);
+
+  const debouncedGeocode = useCallback(
+    async (input: string) => {
+      if (debounceTimeout.current)
+        clearTimeout(debounceTimeout.current);
+      
+      debounceTimeout.current = setTimeout(async () => { // pass the setter through here so I can use with start and end
+        const newLocations = await geocode(input);
+        if (newLocations.length > 0)
+          setStartLocations(newLocations);
+      }, 250);
+    },
+    []
+  );
 
   return (
     <Card
@@ -50,10 +66,7 @@ export default function LeftCard() {
                 );
               }}
               onInputChange={async (_, input) => {
-                const newLocations = await geocode(input);
-                if (newLocations.length == 0) return;
-
-                setStartLocations(newLocations);
+                debouncedGeocode(input);
               }}
               onChange={(_, value) => {
                 setStart(value?.name || "");
@@ -81,6 +94,8 @@ export default function LeftCard() {
                 );
               }}
               onInputChange={async (_, input) => {
+                
+
                 const newLocations = await geocode(input);
                 if (newLocations.length == 0) return;
 
