@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { middleOfUSA } from "../lib/constants";
-import {useMap } from "@vis.gl/react-maplibre";
+import { useMap } from "@vis.gl/react-maplibre";
 import { getLocation } from "../lib/api";
 
 export default function YouAreHere() {
@@ -10,12 +10,11 @@ export default function YouAreHere() {
     if (!map) return;
     (async () => {
       const location = await getLocation();
-      if (location !== middleOfUSA)
-        map.flyTo({ center: location, zoom: 8 });
+      if (location !== middleOfUSA) map.flyTo({ center: location, zoom: 8 });
     })();
   }, [map]);
 
   if (!map) return null;
 
-  return (<></>);
+  return <></>;
 }

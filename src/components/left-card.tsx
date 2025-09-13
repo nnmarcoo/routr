@@ -13,6 +13,7 @@ import { useMap } from "@vis.gl/react-maplibre";
 import { geocode } from "../lib/api";
 import { PhotonResult } from "../types";
 import { Marker, LngLatBounds } from "maplibre-gl";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function LeftCard() {
   const { current: map } = useMap();
@@ -21,6 +22,7 @@ export default function LeftCard() {
   const [end, setEnd] = useState<PhotonResult | null>(null);
   const [startLocations, setStartLocations] = useState<PhotonResult[]>([]);
   const [endLocations, setEndLocations] = useState<PhotonResult[]>([]);
+  const [loop, setLoop] = useState(false);
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startMarker = useRef<Marker | null>(null);
@@ -44,40 +46,42 @@ export default function LeftCard() {
     if (!map) return;
     const mapInstance = map.getMap();
 
-    if (start?.coordinates) {
-      if (startMarker.current) startMarker.current.setLngLat(start.coordinates);
-      else {
+    startMarker.current?.remove();
+    endMarker.current?.remove();
+    startMarker.current = null;
+    endMarker.current = null;
+
+    if (loop) {
+      if (start?.coordinates) {
+        startMarker.current = new Marker({ color: "orange" })
+          .setLngLat(start.coordinates)
+          .addTo(mapInstance);
+
+        map.flyTo({ center: start.coordinates, zoom: 10 });
+      }
+    } else {
+      if (start?.coordinates) {
         startMarker.current = new Marker({ color: "green" })
           .setLngLat(start.coordinates)
           .addTo(mapInstance);
       }
-    } else {
-      startMarker.current?.remove();
-      startMarker.current = null;
-    }
-
-    if (end?.coordinates) {
-      if (endMarker.current) endMarker.current.setLngLat(end.coordinates);
-      else {
+      if (end?.coordinates) {
         endMarker.current = new Marker({ color: "red" })
           .setLngLat(end.coordinates)
           .addTo(mapInstance);
       }
-    } else {
-      endMarker.current?.remove();
-      endMarker.current = null;
+
+      if (start?.coordinates && end?.coordinates) {
+        const bounds = new LngLatBounds(start.coordinates, start.coordinates);
+        bounds.extend(end.coordinates);
+        map.fitBounds(bounds, { padding: 50, duration: 800 });
+      } else if (start?.coordinates)
+        map.flyTo({ center: start.coordinates, zoom: 10 });
+      else if (end?.coordinates)
+        map.flyTo({ center: end.coordinates, zoom: 10 });
     }
+  }, [start, end, loop, map]);
 
-    if (start?.coordinates && end?.coordinates) {
-      const bounds = new LngLatBounds(start.coordinates, start.coordinates);
-      bounds.extend(end.coordinates);
-      map.fitBounds(bounds, { padding: 50, duration: 800 });
-    } else if (start?.coordinates)
-      map.flyTo({ center: start.coordinates, zoom: 10 });
-    else if (end?.coordinates) map.flyTo({ center: end.coordinates, zoom: 10 });
-  }, [start, end, map]);
-
-  // necessary?
   useEffect(() => {
     return () => {
       startMarker.current?.remove();
@@ -111,31 +115,51 @@ export default function LeftCard() {
               noOptionsText="Type something!"
             />
           </ListItem>
-          <ListItem>
-            <Autocomplete
-              id="end"
-              sx={{ width: "100%" }}
-              options={endLocations}
-              value={end}
-              getOptionLabel={(option) => option.name}
-              isOptionEqualToValue={(o, v) => o.id === v.id}
-              filterOptions={(x) => x}
-              renderOption={(props, option) => (
-                <li {...props} key={option.id}>
-                  {option.name}
-                </li>
-              )}
-              onInputChange={(_, input) =>
-                debouncedGeocode(input, setEndLocations)
-              }
-              onChange={(_, value) => setEnd(value)}
-              renderInput={(params) => <TextField {...params} label="End" />}
-              noOptionsText="Type something!"
-            />
-          </ListItem>
+          <AnimatePresence>
+            {!loop && (
+              <motion.div
+                key="end-autocomplete"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ListItem>
+                  <Autocomplete
+                    id="end"
+                    sx={{ width: "100%" }}
+                    options={endLocations}
+                    value={end}
+                    getOptionLabel={(option) => option.name}
+                    isOptionEqualToValue={(o, v) => o.id === v.id}
+                    filterOptions={(x) => x}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.id}>
+                        {option.name}
+                      </li>
+                    )}
+                    onInputChange={(_, input) =>
+                      debouncedGeocode(input, setEndLocations)
+                    }
+                    onChange={(_, value) => setEnd(value)}
+                    renderInput={(params) => (
+                      <TextField {...params} label="End" />
+                    )}
+                    noOptionsText="Type something!"
+                  />
+                </ListItem>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <ListItem>
             <FormControlLabel
-              control={<Checkbox defaultChecked />}
+              control={
+                <Checkbox
+                  checked={loop}
+                  onChange={(e) => setLoop(e.target.checked)}
+                />
+              }
               label="Loop"
             />
           </ListItem>
