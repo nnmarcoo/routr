@@ -1,6 +1,7 @@
 import {
   Autocomplete,
   Checkbox,
+  Divider,
   FormControlLabel,
   ListItem,
   Stack,
@@ -14,6 +15,7 @@ import { geocode } from "../lib/api";
 import { PhotonResult } from "../types";
 import { Marker, LngLatBounds } from "maplibre-gl";
 import { AnimatePresence, motion } from "framer-motion";
+import ToolSelect from "./tool-select";
 
 export default function LeftCard() {
   const { current: map } = useMap();
@@ -164,6 +166,8 @@ export default function LeftCard() {
             />
           </ListItem>
         </Stack>
+        <Divider />
+        <ToolSelect />
       </CardContent>
     </Card>
   );
