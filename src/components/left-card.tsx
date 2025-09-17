@@ -11,7 +11,15 @@ export default function LeftCard() {
   const [range, setRange] = useState<[number, number]>([routeMin, routeMax]);
 
   return (
-    <Card sx={{ position: "absolute", top: 16, left: 16, minWidth: 300, bottom: 16 }}>
+    <Card
+      sx={{
+        position: "absolute",
+        top: 16,
+        left: 16,
+        minWidth: 300,
+        bottom: 16,
+      }}
+    >
       <CardContent>
         <LocationSelect />
         <ListItem>

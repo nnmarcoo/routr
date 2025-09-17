@@ -1,5 +1,4 @@
 import { ToggleButton, ToggleButtonGroup, Tooltip } from "@mui/material";
-import MouseIcon from "@mui/icons-material/Mouse";
 import BrushIcon from "@mui/icons-material/Brush";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline"; // eraser option
 import { useState } from "react";
