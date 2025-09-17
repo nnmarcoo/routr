@@ -1,10 +1,13 @@
 import { ToggleButton, ToggleButtonGroup, Tooltip } from "@mui/material";
-import BrushIcon from "@mui/icons-material/Brush";
+import CreateIcon from '@mui/icons-material/Create';
 import MouseIcon from "@mui/icons-material/Mouse";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline"; // eraser option
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMap } from "@vis.gl/react-maplibre";
+import { MapMouseEvent } from "maplibre-gl";
 
 export default function ToolSelect() {
+  const { current: map } = useMap();
   const [tool, setTool] = useState("mouse");
 
   const handleChange = (
@@ -13,6 +16,16 @@ export default function ToolSelect() {
   ) => {
     if (newTool !== null) setTool(newTool);
   };
+
+  useEffect(() => {
+    if (!map) return;
+
+    map.on("click", (e: MapMouseEvent) => {
+      console.log("A click event occurred at:", e.lngLat);
+    });
+  }, [map]);
+
+  if (!map) return null;
 
   return (
     <>
@@ -29,9 +42,9 @@ export default function ToolSelect() {
           </ToggleButton>
         </Tooltip>
 
-        <Tooltip title="Brush">
+        <Tooltip title="Pen">
           <ToggleButton value="brush" aria-label="brush">
-            <BrushIcon />
+            <CreateIcon />
           </ToggleButton>
         </Tooltip>
 
