@@ -12,7 +12,6 @@ export default function App() {
           latitude: middleOfUSA[1],
           zoom: 2,
         }}
-        // mapStyle="/styles/dark.json"
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
       >
         <YouAreHere />
