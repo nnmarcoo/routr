@@ -73,7 +73,12 @@ export default function LeftCard() {
           .addTo(mapInstance);
       }
 
-      if (start?.coordinates && end?.coordinates) {
+      if (
+        start?.coordinates &&
+        end?.coordinates &&
+        (start.coordinates[0] !== end.coordinates[0] ||
+          start.coordinates[1] !== end.coordinates[1])
+      ) {
         const bounds = new LngLatBounds(start.coordinates, start.coordinates);
         bounds.extend(end.coordinates);
         map.fitBounds(bounds, { padding: 50, duration: 800 });
