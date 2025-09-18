@@ -2,7 +2,7 @@ import { Divider, ListItem, IconButton } from "@mui/material";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import ToolSelect from "./tool-select";
 import { routeMax, routeMin } from "../lib/constants";
 import RangeSelect from "./range-select";
@@ -26,47 +26,38 @@ export default function LeftCard() {
           width: 32,
           height: 32,
           boxShadow: 1,
-          "&:hover": {
-            backgroundColor: "white",
-            boxShadow: 3,
-          },
+          transition: "left 0.3s ease",
+          "&:hover": { backgroundColor: "white", boxShadow: 3 },
         }}
       >
         {open ? <ChevronLeft /> : <ChevronRight />}
       </IconButton>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="left-card"
-            initial={{ opacity: 0, width: 0 }}
-            animate={{ opacity: 1, width: 300 }}
-            exit={{ opacity: 0, width: 0 }}
-            transition={{ duration: 0.25 }}
-            style={{
-              position: "absolute",
-              top: 16,
-              left: 16,
-              bottom: 16,
-              overflow: "hidden",
-            }}
-          >
-            <Card sx={{ height: "100%" }}>
-              <CardContent>
-                <LocationSelect />
-                <ListItem>
-                  <RangeSelect range={range} setRange={setRange} />
-                </ListItem>
-                <Divider />
-                <ListItem>
-                  <ToolSelect />
-                </ListItem>
-                <Divider />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <motion.div
+        animate={{ x: open ? 0 : -320, opacity: open ? 1 : 0 }}
+        transition={{ type: "tween", duration: 0.3 }}
+        style={{
+          position: "absolute",
+          top: 16,
+          left: 16,
+          bottom: 16,
+          pointerEvents: open ? "auto" : "none",
+        }}
+      >
+        <Card sx={{ height: "100%", width: 300 }}>
+          <CardContent>
+            <LocationSelect />
+            <ListItem>
+              <RangeSelect range={range} setRange={setRange} />
+            </ListItem>
+            <Divider />
+            <ListItem>
+              <ToolSelect />
+            </ListItem>
+            <Divider />
+          </CardContent>
+        </Card>
+      </motion.div>
     </>
   );
 }
