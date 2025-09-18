@@ -20,7 +20,7 @@ export default function LeftCard() {
         sx={{
           position: "absolute",
           top: 16,
-          left: open ? 324 : 16,
+          left: open ? 330 : 16,
           backgroundColor: "white",
           borderRadius: 2,
           width: 32,
@@ -40,11 +40,10 @@ export default function LeftCard() {
           position: "absolute",
           top: 16,
           left: 16,
-          bottom: 16,
           pointerEvents: open ? "auto" : "none",
         }}
       >
-        <Card sx={{ height: "100dvh", width: 300 }}>
+        <Card sx={{ width: 300 }}>
           <CardContent>
             <LocationSelect />
             <ListItem>
@@ -54,7 +53,6 @@ export default function LeftCard() {
             <ListItem>
               <ToolSelect />
             </ListItem>
-            <Divider />
           </CardContent>
         </Card>
       </motion.div>
