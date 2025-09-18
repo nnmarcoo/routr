@@ -44,7 +44,7 @@ export default function LeftCard() {
           pointerEvents: open ? "auto" : "none",
         }}
       >
-        <Card sx={{ height: "100%", width: 300 }}>
+        <Card sx={{ height: "100dvh", width: 300 }}>
           <CardContent>
             <LocationSelect />
             <ListItem>
