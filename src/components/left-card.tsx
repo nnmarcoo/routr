@@ -20,7 +20,7 @@ export default function LeftCard() {
         sx={{
           position: "absolute",
           top: 16,
-          left: open ? 324 : 16,
+          left: open ? 350 : 16,
           backgroundColor: "white",
           borderRadius: 2,
           width: 32,
@@ -40,7 +40,7 @@ export default function LeftCard() {
           <motion.div
             key="left-card"
             initial={{ opacity: 0, width: 0 }}
-            animate={{ opacity: 1, width: 300 }}
+            animate={{ opacity: 1, width: 320 }}
             exit={{ opacity: 0, width: 0 }}
             transition={{ duration: 0.25 }}
             style={{
