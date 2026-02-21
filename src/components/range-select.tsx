@@ -15,7 +15,7 @@ export default function RangeSelect({ range, setRange }: RangeSelectProps) {
         alignItems="center"
         mb={1}
       >
-        <Typography>Range</Typography>
+        <Typography>Range (mi)</Typography>
 
         <Stack direction="row" spacing={1}>
           <TextField

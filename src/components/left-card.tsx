@@ -7,14 +7,21 @@ import ToolSelect from "./tool-select";
 import { routeMax, routeMin } from "../lib/constants";
 import RangeSelect from "./range-select";
 import LocationSelect from "./location-select";
+import RouteLayer from "./route-layer";
 import { ChevronLeft, ChevronRight } from "@mui/icons-material";
+import { RouteResult } from "../types";
 
 export default function LeftCard() {
   const [range, setRange] = useState<[number, number]>([routeMin, routeMax]);
   const [open, setOpen] = useState(true);
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [polygonCoords, setPolygonCoords] = useState<[number, number][]>([]);
+  const [polygonClosed, setPolygonClosed] = useState(false);
 
   return (
     <>
+      <RouteLayer route={route} />
+
       <IconButton
         onClick={() => setOpen((o) => !o)}
         sx={{
@@ -45,13 +52,22 @@ export default function LeftCard() {
       >
         <Card sx={{ width: 300 }}>
           <CardContent>
-            <LocationSelect />
+            <LocationSelect
+              onRoute={setRoute}
+              range={range}
+              polygon={polygonClosed ? polygonCoords : undefined}
+            />
             <ListItem>
               <RangeSelect range={range} setRange={setRange} />
             </ListItem>
             <Divider />
             <ListItem>
-              <ToolSelect />
+              <ToolSelect
+                polygonCoords={polygonCoords}
+                polygonClosed={polygonClosed}
+                setPolygonCoords={setPolygonCoords}
+                setPolygonClosed={setPolygonClosed}
+              />
             </ListItem>
           </CardContent>
         </Card>

@@ -57,3 +57,9 @@ export interface PhotonResult {
   name: string;
   coordinates: [number, number];
 }
+
+export interface RouteResult {
+  coordinates: [number, number][];
+  distanceMiles: number;
+  durationMinutes: number;
+}
