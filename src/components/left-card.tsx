@@ -73,9 +73,7 @@ export default function LeftCard() {
     [isMobile],
   );
 
-  const closedX = isMobile
-    ? "-110%"
-    : `calc(-100% + ${COLLAPSED_PEEK}px)`;
+  const closedX = isMobile ? "-110%" : `calc(-100% + ${COLLAPSED_PEEK}px)`;
 
   return (
     <>
@@ -252,9 +250,7 @@ export default function LeftCard() {
                       </IconButton>
                     </div>
 
-                    {selectedRoute && (
-                      <RouteTimeline route={selectedRoute} />
-                    )}
+                    {selectedRoute && <RouteTimeline route={selectedRoute} />}
                   </div>
                 </motion.div>
               )}
@@ -263,10 +259,7 @@ export default function LeftCard() {
             <div style={divider} />
 
             <div style={section}>
-              <DistanceInput
-                value={targetMiles}
-                onChange={setTargetMiles}
-              />
+              <DistanceInput value={targetMiles} onChange={setTargetMiles} />
             </div>
 
             <div style={divider} />
