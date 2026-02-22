@@ -12,7 +12,7 @@ import {
   ArrowForwardIos,
 } from "@mui/icons-material";
 import { RouteResult } from "../types";
-import { IconButton, useMediaQuery } from "@mui/material";
+import { IconButton, useMediaQuery, Fab } from "@mui/material";
 
 const COLLAPSED_PEEK = 40;
 
@@ -67,20 +67,55 @@ export default function LeftCard() {
       top: isMobile ? 8 : 16,
       left: isMobile ? 8 : 16,
       right: isMobile ? 8 : undefined,
-      pointerEvents: "auto", // ✅ always clickable
+      pointerEvents: "auto",
       zIndex: 10,
     }),
     [isMobile],
   );
 
+  const closedX = isMobile
+    ? "-110%"
+    : `calc(-100% + ${COLLAPSED_PEEK}px)`;
+
   return (
     <>
       <RouteLayer route={selectedRoute} />
 
+      {/* Mobile floating reopen button */}
+      <AnimatePresence>
+        {isMobile && !open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.18 }}
+            style={{
+              position: "absolute",
+              top: 16,
+              left: 16,
+              zIndex: 11,
+            }}
+          >
+            <Fab
+              size="small"
+              onClick={() => setOpen(true)}
+              sx={{
+                background: "rgba(255,255,255,0.95)",
+                color: "#0f172a",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                "&:hover": { background: "#fff" },
+              }}
+            >
+              <ChevronRight fontSize="small" />
+            </Fab>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div
         initial={false}
         animate={{
-          x: open ? 0 : `calc(-100% + ${COLLAPSED_PEEK}px)`,
+          x: open ? 0 : closedX,
           opacity: 1,
         }}
         transition={{ type: "spring", stiffness: 260, damping: 30 }}
@@ -112,7 +147,7 @@ export default function LeftCard() {
             </IconButton>
           </div>
 
-          {/* Body (disabled when collapsed) */}
+          {/* Body */}
           <div
             style={{
               pointerEvents: open ? "auto" : "none",
@@ -120,7 +155,6 @@ export default function LeftCard() {
               transition: "opacity 0.2s ease",
             }}
           >
-            {/* Location + routing */}
             <div style={section}>
               <LocationSelect
                 onRoutes={(r) => {
@@ -132,7 +166,6 @@ export default function LeftCard() {
               />
             </div>
 
-            {/* Route selector */}
             <AnimatePresence>
               {routes.length > 0 && (
                 <motion.div
@@ -146,7 +179,6 @@ export default function LeftCard() {
                   <div
                     style={{ ...section, paddingTop: 10, paddingBottom: 10 }}
                   >
-                    {/* Route picker */}
                     <div
                       style={{
                         display: "flex",
@@ -176,7 +208,6 @@ export default function LeftCard() {
                             fontSize: 12,
                             fontWeight: 600,
                             color: "#0f172a",
-                            letterSpacing: "0.02em",
                           }}
                         >
                           Route {selectedIndex + 1}{" "}
@@ -221,8 +252,9 @@ export default function LeftCard() {
                       </IconButton>
                     </div>
 
-                    {/* Timeline scrubber */}
-                    {selectedRoute && <RouteTimeline route={selectedRoute} />}
+                    {selectedRoute && (
+                      <RouteTimeline route={selectedRoute} />
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -230,14 +262,15 @@ export default function LeftCard() {
 
             <div style={divider} />
 
-            {/* Distance */}
             <div style={section}>
-              <DistanceInput value={targetMiles} onChange={setTargetMiles} />
+              <DistanceInput
+                value={targetMiles}
+                onChange={setTargetMiles}
+              />
             </div>
 
             <div style={divider} />
 
-            {/* Drawing tools */}
             <div style={{ ...section, paddingTop: 10, paddingBottom: 10 }}>
               <div
                 style={{
