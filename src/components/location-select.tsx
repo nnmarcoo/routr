@@ -13,16 +13,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-maplibre";
 import { PhotonResult, RouteResult } from "../types";
-import { geocode, getRoute, getLoopRoute } from "../lib/api";
+import { geocode, getLoopRoutes, getRoutes } from "../lib/api";
 import { Marker, LngLatBounds } from "maplibre-gl";
 
 interface LocationSelectProps {
-  onRoute: (route: RouteResult | null) => void;
-  range: [number, number];
+  onRoutes: (routes: RouteResult[]) => void;
+  targetMiles: number;
   polygon?: [number, number][];
 }
 
-export default function LocationSelect({ onRoute, range, polygon }: LocationSelectProps) {
+export default function LocationSelect({ onRoutes, targetMiles, polygon }: LocationSelectProps) {
   const { current: map } = useMap();
 
   const [start, setStart] = useState<PhotonResult | null>(null);
@@ -67,7 +67,7 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
         startMarker.current = new Marker({ color: "orange" })
           .setLngLat(start.coordinates)
           .addTo(mapInstance);
-        map.flyTo({ center: start.coordinates, zoom: 10 });
+        map.flyTo({ center: start.coordinates, zoom: 13 });
       }
     } else {
       if (start?.coordinates) {
@@ -89,11 +89,11 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
       ) {
         const bounds = new LngLatBounds(start.coordinates, start.coordinates);
         bounds.extend(end.coordinates);
-        map.fitBounds(bounds, { padding: 50, duration: 800 });
+        map.fitBounds(bounds, { padding: 80, duration: 800 });
       } else if (start?.coordinates) {
-        map.flyTo({ center: start.coordinates, zoom: 10 });
+        map.flyTo({ center: start.coordinates, zoom: 13 });
       } else if (end?.coordinates) {
-        map.flyTo({ center: end.coordinates, zoom: 10 });
+        map.flyTo({ center: end.coordinates, zoom: 13 });
       }
     }
   }, [start, end, loop, map]);
@@ -111,30 +111,18 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
     if (!start) return;
     setLoading(true);
     setRouteError(null);
-    onRoute(null);
+    onRoutes([]);
 
-    let result: RouteResult | null = null;
+    let results: RouteResult[] = [];
 
     if (loop) {
-      const targetMiles = (range[0] + range[1]) / 2;
-      result = await getLoopRoute(start.coordinates, targetMiles, polygon);
+      results = await getLoopRoutes(start.coordinates, targetMiles, polygon);
     } else if (end) {
-      result = await getRoute(start.coordinates, end.coordinates);
-      if (result) {
-        if (result.distanceMiles < range[0] * 0.5) {
-          setRouteError(
-            `Route is ${result.distanceMiles.toFixed(1)} mi — shorter than your ${range[0]} mi minimum.`,
-          );
-        } else if (result.distanceMiles > range[1] * 2) {
-          setRouteError(
-            `Route is ${result.distanceMiles.toFixed(1)} mi — longer than your ${range[1]} mi maximum.`,
-          );
-        }
-      }
+      results = await getRoutes(start.coordinates, end.coordinates);
     }
 
-    if (result) {
-      onRoute(result);
+    if (results.length > 0) {
+      onRoutes(results);
     } else {
       setRouteError("Could not find a route. Try different locations.");
     }
@@ -160,7 +148,7 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
           onInputChange={(_, input) =>
             debouncedGeocode(input, setStartLocations, startDebounce)
           }
-          onChange={(_, value) => { setStart(value); onRoute(null); setRouteError(null); }}
+          onChange={(_, value) => { setStart(value); onRoutes([]); setRouteError(null); }}
           renderInput={(params) => <TextField {...params} label="Start" />}
           noOptionsText="Type something!"
         />
@@ -192,7 +180,7 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
                 onInputChange={(_, input) =>
                   debouncedGeocode(input, setEndLocations, endDebounce)
                 }
-                onChange={(_, value) => { setEnd(value); onRoute(null); setRouteError(null); }}
+                onChange={(_, value) => { setEnd(value); onRoutes([]); setRouteError(null); }}
                 renderInput={(params) => <TextField {...params} label="End" />}
                 noOptionsText="Type something!"
               />
@@ -206,7 +194,7 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
           control={
             <Checkbox
               checked={loop}
-              onChange={(e) => { setLoop(e.target.checked); onRoute(null); setRouteError(null); }}
+              onChange={(e) => { setLoop(e.target.checked); onRoutes([]); setRouteError(null); }}
             />
           }
           label="Loop"
@@ -221,7 +209,7 @@ export default function LocationSelect({ onRoute, range, polygon }: LocationSele
           onClick={handleGetRoute}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
-          {loading ? "Routing…" : "Get Route"}
+          {loading ? "Finding routes…" : "Get Route"}
         </Button>
       </ListItem>
 

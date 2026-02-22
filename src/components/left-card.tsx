@@ -4,23 +4,26 @@ import CardContent from "@mui/material/CardContent";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import ToolSelect from "./tool-select";
-import { routeMax, routeMin } from "../lib/constants";
-import RangeSelect from "./range-select";
+import DistanceInput from "./range-select";
 import LocationSelect from "./location-select";
 import RouteLayer from "./route-layer";
+import RouteSelector from "./route-selector";
 import { ChevronLeft, ChevronRight } from "@mui/icons-material";
 import { RouteResult } from "../types";
 
 export default function LeftCard() {
-  const [range, setRange] = useState<[number, number]>([routeMin, routeMax]);
+  const [targetMiles, setTargetMiles] = useState(5);
   const [open, setOpen] = useState(true);
-  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routes, setRoutes] = useState<RouteResult[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [polygonCoords, setPolygonCoords] = useState<[number, number][]>([]);
   const [polygonClosed, setPolygonClosed] = useState(false);
 
+  const selectedRoute = routes[selectedIndex] ?? null;
+
   return (
     <>
-      <RouteLayer route={route} />
+      <RouteLayer route={selectedRoute} />
 
       <IconButton
         onClick={() => setOpen((o) => !o)}
@@ -53,12 +56,21 @@ export default function LeftCard() {
         <Card sx={{ width: 300 }}>
           <CardContent>
             <LocationSelect
-              onRoute={setRoute}
-              range={range}
+              onRoutes={(r) => { setRoutes(r); setSelectedIndex(0); }}
+              targetMiles={targetMiles}
               polygon={polygonClosed ? polygonCoords : undefined}
             />
+            {routes.length > 0 && (
+              <ListItem>
+                <RouteSelector
+                  routes={routes}
+                  selectedIndex={selectedIndex}
+                  onSelect={setSelectedIndex}
+                />
+              </ListItem>
+            )}
             <ListItem>
-              <RangeSelect range={range} setRange={setRange} />
+              <DistanceInput value={targetMiles} onChange={setTargetMiles} />
             </ListItem>
             <Divider />
             <ListItem>
