@@ -175,7 +175,10 @@ function computeOverpassRadius(targetMeters: number): number {
   // A loop of circumference C roughly fits in a circle of radius C/(2π).
   // Multiply by 1.8 to give the DFS room to explore diverse directions and
   // find routes that aren't just a tight circle around the start.
-  return Math.max(800, Math.min(25_000, Math.round((targetMeters / (2 * Math.PI)) * 1.8)));
+  return Math.max(
+    800,
+    Math.min(25_000, Math.round((targetMeters / (2 * Math.PI)) * 1.8)),
+  );
 }
 
 async function fetchWalkableGraph(
@@ -212,7 +215,9 @@ async function fetchWalkableGraph(
       if (el.type !== "way" || !el.geometry || el.geometry.length < 2) continue;
       const pts = el.geometry;
       endpointKeys.add(coordKey(pts[0].lat, pts[0].lon));
-      endpointKeys.add(coordKey(pts[pts.length - 1].lat, pts[pts.length - 1].lon));
+      endpointKeys.add(
+        coordKey(pts[pts.length - 1].lat, pts[pts.length - 1].lon),
+      );
       for (const { lat, lon } of pts) {
         const k = coordKey(lat, lon);
         wayRefCount.set(k, (wayRefCount.get(k) ?? 0) + 1);
@@ -259,12 +264,14 @@ async function fetchWalkableGraph(
 
       let segStartId = getOrCreate(pts[0].lat, pts[0].lon);
       let accDist = 0;
-      let prevLat = pts[0].lat, prevLon = pts[0].lon;
+      let prevLat = pts[0].lat,
+        prevLon = pts[0].lon;
 
       for (let i = 1; i < pts.length; i++) {
         const { lat, lon } = pts[i];
         accDist += haversineMeters(prevLat, prevLon, lat, lon);
-        prevLat = lat; prevLon = lon;
+        prevLat = lat;
+        prevLon = lon;
 
         if (isJunction(lat, lon)) {
           const curId = getOrCreate(lat, lon);
@@ -354,7 +361,12 @@ function runSingleDfs(
 
     // Check loop closure — must be within ~200m of start (about 2 junction hops)
     if (depth > 4 && dist >= minDist && dist <= maxDist) {
-      const closeDist = haversineMeters(node.lat, node.lon, startNode.lat, startNode.lon);
+      const closeDist = haversineMeters(
+        node.lat,
+        node.lon,
+        startNode.lat,
+        startNode.lon,
+      );
       if (closeDist < Math.min(200, targetMeters * 0.05)) {
         results.push({
           nodeIds: [...path, startId],
@@ -379,13 +391,22 @@ function runSingleDfs(
         const nn = graph.get(nid);
         if (!nn) return null;
 
-        if (polygon && polygon.length >= 3 &&
-            !isPointInPolygon([nn.lon, nn.lat], polygon)) return null;
+        if (
+          polygon &&
+          polygon.length >= 3 &&
+          !isPointInPolygon([nn.lon, nn.lat], polygon)
+        )
+          return null;
 
         const newDist = dist + distMeters;
 
         // Admissibility: can we still close the loop within budget?
-        const closingDist = haversineMeters(nn.lat, nn.lon, startNode.lat, startNode.lon);
+        const closingDist = haversineMeters(
+          nn.lat,
+          nn.lon,
+          startNode.lat,
+          startNode.lon,
+        );
         if (newDist + closingDist > maxDist * 1.15) return null;
 
         const ck = cellKey(nn.lon, nn.lat);
@@ -393,11 +414,13 @@ function runSingleDfs(
 
         // Phase-aware angle scoring
         const neighborAngle = Math.atan2(nn.lat - node.lat, nn.lon - node.lon);
-        const targetAngle = phase < 0.5
-          ? runAngle
-          : Math.atan2(startNode.lat - node.lat, startNode.lon - node.lon);
+        const targetAngle =
+          phase < 0.5
+            ? runAngle
+            : Math.atan2(startNode.lat - node.lat, startNode.lon - node.lon);
         const angleDiff = Math.abs(
-          ((neighborAngle - targetAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI,
+          ((neighborAngle - targetAngle + 3 * Math.PI) % (2 * Math.PI)) -
+            Math.PI,
         );
 
         // Strongly prefer roads not used by prior runs
@@ -449,14 +472,24 @@ async function dfsLoopCandidates(
 
   for (let run = 0; run < numRuns; run++) {
     const candidates = runSingleDfs(
-      graph, startId, startNode, targetMeters,
-      minDist, maxDist, polygon, globalUsedEdges, run, numRuns,
+      graph,
+      startId,
+      startNode,
+      targetMeters,
+      minDist,
+      maxDist,
+      polygon,
+      globalUsedEdges,
+      run,
+      numRuns,
     );
     for (const candidate of candidates) {
       results.push(candidate);
       // Mark edges used (undirected) so later runs are pushed onto fresh roads
       for (let i = 0; i < candidate.nodeIds.length - 1; i++) {
-        globalUsedEdges.add(edgeKey(candidate.nodeIds[i], candidate.nodeIds[i + 1]));
+        globalUsedEdges.add(
+          edgeKey(candidate.nodeIds[i], candidate.nodeIds[i + 1]),
+        );
       }
     }
   }
@@ -745,7 +778,9 @@ function downsamplePath(
     return n ? [n.lon, n.lat] : null;
   };
   if (nodeIds.length <= targetCount) {
-    return nodeIds.map(resolve).filter((c): c is [number, number] => c !== null);
+    return nodeIds
+      .map(resolve)
+      .filter((c): c is [number, number] => c !== null);
   }
   const sampled: Array<[number, number]> = [];
   for (let i = 0; i < targetCount; i++) {
@@ -790,10 +825,12 @@ async function fetchLoopFromCandidate(
       if (routeInsideFraction(result.coordinates, polygon) < 0.8) return null;
     }
 
-    (result as RouteResult & { _backtrack?: number; _uniqueCells?: number })._backtrack =
-      backtrachRatio(result.coordinates);
-    (result as RouteResult & { _backtrack?: number; _uniqueCells?: number })._uniqueCells =
-      candidate.uniqueCells;
+    (
+      result as RouteResult & { _backtrack?: number; _uniqueCells?: number }
+    )._backtrack = backtrachRatio(result.coordinates);
+    (
+      result as RouteResult & { _backtrack?: number; _uniqueCells?: number }
+    )._uniqueCells = candidate.uniqueCells;
 
     return result;
   } catch {
@@ -869,12 +906,19 @@ export async function getLoopRoutes(
   if (polygon && polygon.length >= 3) {
     const lons = polygon.map(([ln]) => ln);
     const lats = polygon.map(([, lt]) => lt);
-    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons),
+      maxLon = Math.max(...lons);
+    const minLat = Math.min(...lats),
+      maxLat = Math.max(...lats);
     graphCenterLon = (minLon + maxLon) / 2;
     graphCenterLat = (minLat + maxLat) / 2;
     // Radius = distance from centroid to farthest corner, plus 20% buffer
-    const cornerDist = haversineMeters(graphCenterLat, graphCenterLon, maxLat, maxLon);
+    const cornerDist = haversineMeters(
+      graphCenterLat,
+      graphCenterLon,
+      maxLat,
+      maxLon,
+    );
     graphRadius = Math.max(overpassRadius, cornerDist * 1.2);
   }
 
@@ -932,7 +976,10 @@ export async function getLoopRoutes(
 
   // Sort: primarily by closeness to target distance, then wider routes first
   // (more unique cells = broader area coverage), then low backtrack ratio.
-  type ScoredRoute = RouteResult & { _backtrack?: number; _uniqueCells?: number };
+  type ScoredRoute = RouteResult & {
+    _backtrack?: number;
+    _uniqueCells?: number;
+  };
   valid.sort((a, b) => {
     const distScore =
       Math.abs(a.distanceMiles - targetMiles) -
