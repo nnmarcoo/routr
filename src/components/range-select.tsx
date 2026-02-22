@@ -1,4 +1,3 @@
-import { InputAdornment, Stack, TextField, Typography } from "@mui/material";
 import { routeMin, routeMax } from "../lib/constants";
 import { useState } from "react";
 
@@ -21,24 +20,36 @@ export default function DistanceInput({ value, onChange }: DistanceInputProps) {
   };
 
   return (
-    <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
-      <Typography>Distance</Typography>
-      <TextField
-        size="small"
-        value={raw}
-        onChange={(e) => setRaw(e.target.value)}
-        onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") commit((e.target as HTMLInputElement).value); }}
-        sx={{
-          width: 90,
-          "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button": { display: "none" },
-          "& input[type=number]": { MozAppearance: "textfield" },
-        }}
-        slotProps={{
-          input: { endAdornment: <InputAdornment position="end">mi</InputAdornment> },
-          htmlInput: { inputMode: "decimal" },
-        }}
-      />
-    </Stack>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+      <span style={{ fontSize: 12, color: "#64748b" }}>Distance</span>
+      <div style={{ position: "relative", width: 90 }}>
+        <input
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") commit((e.target as HTMLInputElement).value); }}
+          inputMode="decimal"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 8,
+            padding: "7px 28px 7px 10px",
+            color: "#0f172a",
+            fontSize: 13,
+            outline: "none",
+            appearance: "none",
+            MozAppearance: "textfield",
+          } as React.CSSProperties}
+        />
+        <span style={{
+          position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)",
+          fontSize: 11, color: "#94a3b8", pointerEvents: "none",
+        }}>
+          mi
+        </span>
+      </div>
+    </div>
   );
 }

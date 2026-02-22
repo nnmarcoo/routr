@@ -13,39 +13,22 @@ const LYR_LINE = "route-line-layer";
 const LYR_ARROWS = "route-line-arrows";
 const ARROW_IMAGE = "route-arrow";
 
-// Draw a right-pointing chevron arrow onto a canvas for use as a MapLibre sprite.
 function makeArrowImage(size: number): ImageData {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-
-  // Transparent background
   ctx.clearRect(0, 0, size, size);
-
   const m = size / 2;
-  const tip = size * 0.85;
-  const tail = size * 0.15;
-  const arm = size * 0.3;
-
+  const tip = size * 0.82;
+  const arm = size * 0.28;
   ctx.beginPath();
-  ctx.moveTo(tip, m);          // arrowhead tip (right)
-  ctx.lineTo(m, m - arm);      // upper arm
-  ctx.lineTo(m, m + arm);      // lower arm
+  ctx.moveTo(tip, m);
+  ctx.lineTo(m - size * 0.05, m - arm);
+  ctx.lineTo(m - size * 0.05, m + arm);
   ctx.closePath();
-
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
   ctx.fill();
-
-  // Thin stem line
-  ctx.beginPath();
-  ctx.moveTo(tail, m);
-  ctx.lineTo(m, m);
-  ctx.strokeStyle = "rgba(255,255,255,0.95)";
-  ctx.lineWidth = size * 0.12;
-  ctx.lineCap = "round";
-  ctx.stroke();
-
   return ctx.getImageData(0, 0, size, size);
 }
 
@@ -67,10 +50,8 @@ export default function RouteLayer({ route }: RouteLayerProps) {
     };
 
     const apply = () => {
-      // Register arrow image once
       if (!map.hasImage(ARROW_IMAGE)) {
-        const img = makeArrowImage(32);
-        map.addImage(ARROW_IMAGE, img, { pixelRatio: 2 });
+        map.addImage(ARROW_IMAGE, makeArrowImage(32), { pixelRatio: 2 });
       }
 
       if (map.getSource(SRC)) {
@@ -81,7 +62,8 @@ export default function RouteLayer({ route }: RouteLayerProps) {
 
       if (!initializedRef.current) {
         if (!map.getSource(SRC)) {
-          map.addSource(SRC, { type: "geojson", data: geojson });
+          // lineMetrics: true is required for line-gradient
+          map.addSource(SRC, { type: "geojson", data: geojson, lineMetrics: true });
         }
 
         if (!map.getLayer(LYR_CASING)) {
@@ -91,9 +73,9 @@ export default function RouteLayer({ route }: RouteLayerProps) {
             source: SRC,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-              "line-color": "#1d4ed8",
-              "line-width": 8,
-              "line-opacity": 0.5,
+              "line-color": "#1e40af",
+              "line-width": 7,
+              "line-opacity": 0.25,
             },
           });
         }
@@ -105,7 +87,13 @@ export default function RouteLayer({ route }: RouteLayerProps) {
             source: SRC,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-              "line-color": "#3b82f6",
+              // Gradient: light blue (start) → royal blue (mid) → dark navy (end)
+              "line-gradient": [
+                "interpolate", ["linear"], ["line-progress"],
+                0,    "#93c5fd",
+                0.5,  "#3b82f6",
+                1,    "#1e3a8a",
+              ],
               "line-width": 4,
             },
           });
@@ -118,9 +106,9 @@ export default function RouteLayer({ route }: RouteLayerProps) {
             source: SRC,
             layout: {
               "symbol-placement": "line",
-              "symbol-spacing": 80,       // pixels between arrows
+              "symbol-spacing": 100,
               "icon-image": ARROW_IMAGE,
-              "icon-size": 0.5,
+              "icon-size": 0.55,
               "icon-allow-overlap": true,
               "icon-ignore-placement": true,
             },
