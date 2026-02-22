@@ -134,7 +134,7 @@ function LocationField({
         ref={inputRef}
         style={inputStyle}
         value={text}
-        placeholder={`Search ${label.toLowerCase()}…`}
+        placeholder={`Choose ${label.toLowerCase()}...`}
         onChange={(e) => {
           setText(e.target.value);
           onInput(e.target.value);
