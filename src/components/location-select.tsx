@@ -61,11 +61,17 @@ function LocationField({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setText(value?.name ?? ""); }, [value]);
+  useEffect(() => {
+    setText(value?.name ?? "");
+  }, [value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      )
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -75,26 +81,53 @@ function LocationField({
     if (inputRef.current) setRect(inputRef.current.getBoundingClientRect());
   };
 
-  const dropdown = open && options.length > 0 && rect && createPortal(
-    <div style={{ ...dropdownStyle, top: rect.bottom + 4, left: rect.left, width: rect.width }}>
-      {options.map((opt, i) => (
-        <div
-          key={opt.id}
-          style={{ ...dropdownItemStyle, background: hovered === i ? "#f1f5f9" : "transparent" }}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-          onMouseDown={() => { onSelect(opt); setText(opt.name); setOpen(false); }}
-        >
-          {opt.name}
-        </div>
-      ))}
-    </div>,
-    document.body,
-  );
+  const dropdown =
+    open &&
+    options.length > 0 &&
+    rect &&
+    createPortal(
+      <div
+        style={{
+          ...dropdownStyle,
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+        }}
+      >
+        {options.map((opt, i) => (
+          <div
+            key={opt.id}
+            style={{
+              ...dropdownItemStyle,
+              background: hovered === i ? "#f1f5f9" : "transparent",
+            }}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            onMouseDown={() => {
+              onSelect(opt);
+              setText(opt.name);
+              setOpen(false);
+            }}
+          >
+            {opt.name}
+          </div>
+        ))}
+      </div>,
+      document.body,
+    );
 
   return (
     <div ref={containerRef}>
-      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 5 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "#94a3b8",
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          marginBottom: 5,
+        }}
+      >
         {label}
       </div>
       <input
@@ -109,7 +142,10 @@ function LocationField({
           setOpen(true);
           if (!e.target.value) onSelect(null);
         }}
-        onFocus={() => { captureRect(); if (options.length > 0) setOpen(true); }}
+        onFocus={() => {
+          captureRect();
+          if (options.length > 0) setOpen(true);
+        }}
       />
       {dropdown}
     </div>
@@ -119,20 +155,27 @@ function LocationField({
 // Simple CSS spinner
 function Spinner() {
   return (
-    <span style={{
-      display: "inline-block",
-      width: 13, height: 13,
-      border: "2px solid rgba(255,255,255,0.35)",
-      borderTopColor: "#fff",
-      borderRadius: "50%",
-      animation: "spin 0.7s linear infinite",
-      verticalAlign: "middle",
-      marginRight: 6,
-    }} />
+    <span
+      style={{
+        display: "inline-block",
+        width: 13,
+        height: 13,
+        border: "2px solid rgba(255,255,255,0.35)",
+        borderTopColor: "#fff",
+        borderRadius: "50%",
+        animation: "spin 0.7s linear infinite",
+        verticalAlign: "middle",
+        marginRight: 6,
+      }}
+    />
   );
 }
 
-export default function LocationSelect({ onRoutes, targetMiles, polygon }: LocationSelectProps) {
+export default function LocationSelect({
+  onRoutes,
+  targetMiles,
+  polygon,
+}: LocationSelectProps) {
   const { current: map } = useMap();
 
   const [start, setStart] = useState<PhotonResult | null>(null);
@@ -148,16 +191,19 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
   const startMarker = useRef<Marker | null>(null);
   const endMarker = useRef<Marker | null>(null);
 
-  const debouncedGeocode = useCallback((
-    input: string,
-    setter: React.Dispatch<React.SetStateAction<PhotonResult[]>>,
-    timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
-  ) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      setter(await geocode(input));
-    }, 250);
-  }, []);
+  const debouncedGeocode = useCallback(
+    (
+      input: string,
+      setter: React.Dispatch<React.SetStateAction<PhotonResult[]>>,
+      timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+    ) => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(async () => {
+        setter(await geocode(input));
+      }, 250);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!map) return;
@@ -169,17 +215,28 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
 
     if (loop) {
       if (start?.coordinates) {
-        startMarker.current = new Marker({ color: "#2563eb" }).setLngLat(start.coordinates).addTo(mapInstance);
+        startMarker.current = new Marker({ color: "#2563eb" })
+          .setLngLat(start.coordinates)
+          .addTo(mapInstance);
         map.flyTo({ center: start.coordinates, zoom: 13 });
       }
     } else {
       if (start?.coordinates) {
-        startMarker.current = new Marker({ color: "#2563eb" }).setLngLat(start.coordinates).addTo(mapInstance);
+        startMarker.current = new Marker({ color: "#2563eb" })
+          .setLngLat(start.coordinates)
+          .addTo(mapInstance);
       }
       if (end?.coordinates) {
-        endMarker.current = new Marker({ color: "#1e40af" }).setLngLat(end.coordinates).addTo(mapInstance);
+        endMarker.current = new Marker({ color: "#1e40af" })
+          .setLngLat(end.coordinates)
+          .addTo(mapInstance);
       }
-      if (start?.coordinates && end?.coordinates && (start.coordinates[0] !== end.coordinates[0] || start.coordinates[1] !== end.coordinates[1])) {
+      if (
+        start?.coordinates &&
+        end?.coordinates &&
+        (start.coordinates[0] !== end.coordinates[0] ||
+          start.coordinates[1] !== end.coordinates[1])
+      ) {
         const bounds = new LngLatBounds(start.coordinates, start.coordinates);
         bounds.extend(end.coordinates);
         map.fitBounds(bounds, { padding: 80, duration: 800 });
@@ -191,7 +248,13 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
     }
   }, [start, end, loop, map]);
 
-  useEffect(() => () => { startMarker.current?.remove(); endMarker.current?.remove(); }, []);
+  useEffect(
+    () => () => {
+      startMarker.current?.remove();
+      endMarker.current?.remove();
+    },
+    [],
+  );
 
   const canRoute = loop ? !!start : !!(start && end);
 
@@ -227,7 +290,11 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
           value={start}
           options={startOptions}
           onInput={(v) => debouncedGeocode(v, setStartOptions, startDebounce)}
-          onSelect={(v) => { setStart(v); onRoutes([]); setRouteError(null); }}
+          onSelect={(v) => {
+            setStart(v);
+            onRoutes([]);
+            setRouteError(null);
+          }}
         />
 
         <AnimatePresence>
@@ -244,29 +311,64 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
                 value={end}
                 options={endOptions}
                 onInput={(v) => debouncedGeocode(v, setEndOptions, endDebounce)}
-                onSelect={(v) => { setEnd(v); onRoutes([]); setRouteError(null); }}
+                onSelect={(v) => {
+                  setEnd(v);
+                  onRoutes([]);
+                  setRouteError(null);
+                }}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Loop toggle + button row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", flex: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 2,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+              userSelect: "none",
+              flex: 1,
+            }}
+          >
             <div
-              onClick={() => { setLoop((l) => !l); onRoutes([]); setRouteError(null); }}
+              onClick={() => {
+                setLoop((l) => !l);
+                onRoutes([]);
+                setRouteError(null);
+              }}
               style={{
-                width: 32, height: 18, borderRadius: 9,
+                width: 32,
+                height: 18,
+                borderRadius: 9,
                 background: loop ? "#3b82f6" : "#e2e8f0",
-                position: "relative", transition: "background 0.2s", flexShrink: 0,
+                position: "relative",
+                transition: "background 0.2s",
+                flexShrink: 0,
               }}
             >
-              <div style={{
-                position: "absolute", top: 2, left: loop ? 16 : 2,
-                width: 14, height: 14, borderRadius: "50%",
-                background: "#fff", transition: "left 0.2s",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }} />
+              <div
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: loop ? 16 : 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }}
+              />
             </div>
             <span style={{ fontSize: 12, color: "#64748b" }}>Loop</span>
           </label>
@@ -276,11 +378,18 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
             disabled={!canRoute || loading}
             style={{
               flex: 2,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               padding: "8px 0",
               borderRadius: 8,
               border: "none",
-              background: canRoute && !loading ? "#3b82f6" : loading ? "#3b82f6" : "#f1f5f9",
+              background:
+                canRoute && !loading
+                  ? "#3b82f6"
+                  : loading
+                    ? "#3b82f6"
+                    : "#f1f5f9",
               color: canRoute || loading ? "#fff" : "#94a3b8",
               fontSize: 13,
               fontWeight: 600,
@@ -294,7 +403,9 @@ export default function LocationSelect({ onRoutes, targetMiles, polygon }: Locat
         </div>
 
         {routeError && (
-          <div style={{ fontSize: 11, color: "#dc2626", marginTop: -4 }}>{routeError}</div>
+          <div style={{ fontSize: 11, color: "#dc2626", marginTop: -4 }}>
+            {routeError}
+          </div>
         )}
       </div>
     </>

@@ -8,7 +8,10 @@ interface RouteTimelineProps {
 }
 
 // Accumulate per-segment distances so we can map a fraction to a coordinate.
-function buildDistanceTable(coords: [number, number][]): { cumulative: number[]; total: number } {
+function buildDistanceTable(coords: [number, number][]): {
+  cumulative: number[];
+  total: number;
+} {
   const cumulative = [0];
   for (let i = 1; i < coords.length; i++) {
     const [ax, ay] = coords[i - 1];
@@ -31,10 +34,12 @@ function positionAtFraction(
   if (t <= 0) return coords[0];
   if (t >= 1) return coords[coords.length - 1];
   const target = t * total;
-  let lo = 0, hi = cumulative.length - 1;
+  let lo = 0,
+    hi = cumulative.length - 1;
   while (lo < hi - 1) {
     const mid = (lo + hi) >> 1;
-    if (cumulative[mid] <= target) lo = mid; else hi = mid;
+    if (cumulative[mid] <= target) lo = mid;
+    else hi = mid;
   }
   const seg = cumulative[hi] - cumulative[lo];
   const frac = seg === 0 ? 0 : (target - cumulative[lo]) / seg;
@@ -77,14 +82,27 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
       marker.setLngLat(route.coordinates[0]).addTo(map);
     }
     markerRef.current = marker;
-    return () => { marker.remove(); markerRef.current = null; };
+    return () => {
+      marker.remove();
+      markerRef.current = null;
+    };
   }, [mapApi, route]);
 
   // Move marker when fraction changes.
   useEffect(() => {
-    if (!markerRef.current || !tableRef.current || route.coordinates.length === 0) return;
+    if (
+      !markerRef.current ||
+      !tableRef.current ||
+      route.coordinates.length === 0
+    )
+      return;
     const { cumulative, total } = tableRef.current;
-    const pos = positionAtFraction(route.coordinates, cumulative, total, fraction);
+    const pos = positionAtFraction(
+      route.coordinates,
+      cumulative,
+      total,
+      fraction,
+    );
     markerRef.current.setLngLat(pos);
   }, [fraction, route]);
 
@@ -98,43 +116,79 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {/* Progress bar / scrubber */}
-      <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+      <div
+        style={{
+          position: "relative",
+          height: 20,
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
         {/* Track */}
-        <div style={{
-          position: "absolute", left: 0, right: 0, height: 3,
-          borderRadius: 2, background: "#e2e8f0",
-        }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: 3,
+            borderRadius: 2,
+            background: "#e2e8f0",
+          }}
+        />
         {/* Fill */}
-        <div style={{
-          position: "absolute", left: 0, height: 3,
-          borderRadius: 2, background: "#3b82f6",
-          width: `${fraction * 100}%`, transition: "width 0.05s",
-        }} />
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            height: 3,
+            borderRadius: 2,
+            background: "#3b82f6",
+            width: `${fraction * 100}%`,
+            transition: "width 0.05s",
+          }}
+        />
         {/* Range input over top */}
         <input
           type="range"
-          min={0} max={1000} value={Math.round(fraction * 1000)}
+          min={0}
+          max={1000}
+          value={Math.round(fraction * 1000)}
           onChange={(e) => setFraction(Number(e.target.value) / 1000)}
           style={{
-            position: "absolute", left: 0, right: 0, width: "100%",
-            opacity: 0, cursor: "pointer", margin: 0, height: 20,
+            position: "absolute",
+            left: 0,
+            right: 0,
+            width: "100%",
+            opacity: 0,
+            cursor: "pointer",
+            margin: 0,
+            height: 20,
           }}
         />
         {/* Thumb indicator */}
-        <div style={{
-          position: "absolute",
-          left: `calc(${fraction * 100}% - 6px)`,
-          width: 12, height: 12, borderRadius: "50%",
-          background: "#3b82f6", border: "2px solid #fff",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
-          pointerEvents: "none", transition: "left 0.05s",
-        }} />
+        <div
+          style={{
+            position: "absolute",
+            left: `calc(${fraction * 100}% - 6px)`,
+            width: 12,
+            height: 12,
+            borderRadius: "50%",
+            background: "#3b82f6",
+            border: "2px solid #fff",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+            pointerEvents: "none",
+            transition: "left 0.05s",
+          }}
+        />
       </div>
 
       {/* Stats */}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, color: "#64748b" }}>
-          {distanceCovered.toFixed(2)} <span style={{ color: "#94a3b8" }}>/ {route.distanceMiles.toFixed(2)} mi</span>
+          {distanceCovered.toFixed(2)}{" "}
+          <span style={{ color: "#94a3b8" }}>
+            / {route.distanceMiles.toFixed(2)} mi
+          </span>
         </span>
         <span style={{ fontSize: 11, color: "#64748b" }}>
           {timeStr} <span style={{ color: "#94a3b8" }}>elapsed</span>

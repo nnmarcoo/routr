@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-maplibre";
 import { MapMouseEvent } from "maplibre-gl";
-import type { Feature, Polygon, LineString, FeatureCollection, Point } from "geojson";
+import type {
+  Feature,
+  Polygon,
+  LineString,
+  FeatureCollection,
+  Point,
+} from "geojson";
 
 const SRC_POLYGON = "polygon-region";
 const SRC_VERTICES = "polygon-vertices";
@@ -19,9 +25,17 @@ interface ToolSelectProps {
 }
 
 function ToolBtn({
-  active, disabled, title, onClick, children,
+  active,
+  disabled,
+  title,
+  onClick,
+  children,
 }: {
-  active?: boolean; disabled?: boolean; title: string; onClick: () => void; children: React.ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <button
@@ -29,11 +43,18 @@ function ToolBtn({
       onClick={onClick}
       disabled={disabled}
       style={{
-        display: "flex", alignItems: "center", justifyContent: "center",
-        width: 32, height: 32, borderRadius: 7, border: "none", cursor: disabled ? "default" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 32,
+        height: 32,
+        borderRadius: 7,
+        border: "none",
+        cursor: disabled ? "default" : "pointer",
         background: active ? "#3b82f6" : "#f1f5f9",
         color: disabled ? "#cbd5e1" : active ? "#fff" : "#64748b",
-        fontSize: 15, transition: "background 0.15s, color 0.15s",
+        fontSize: 15,
+        transition: "background 0.15s, color 0.15s",
       }}
     >
       {children}
@@ -42,13 +63,18 @@ function ToolBtn({
 }
 
 export default function ToolSelect({
-  polygonCoords, polygonClosed, setPolygonCoords, setPolygonClosed,
+  polygonCoords,
+  polygonClosed,
+  setPolygonCoords,
+  setPolygonClosed,
 }: ToolSelectProps) {
   const mapRef = useMap();
   const map = mapRef?.current?.getMap();
 
   const [tool, setTool] = useState<0 | 1>(0);
-  const [cursorPreview, setCursorPreview] = useState<[number, number] | null>(null);
+  const [cursorPreview, setCursorPreview] = useState<[number, number] | null>(
+    null,
+  );
 
   const dragIndexRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
@@ -60,41 +86,120 @@ export default function ToolSelect({
 
     const init = () => {
       if (!map.getSource(SRC_POLYGON)) {
-        map.addSource(SRC_POLYGON, { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [] } } as Feature<Polygon> });
-        map.addLayer({ id: LYR_FILL, type: "fill", source: SRC_POLYGON, paint: { "fill-color": "#3b82f6", "fill-opacity": 0.15 } });
-        map.addLayer({ id: LYR_OUTLINE, type: "line", source: SRC_POLYGON, paint: { "line-color": "#3b82f6", "line-width": 1.5 } });
+        map.addSource(SRC_POLYGON, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "Polygon", coordinates: [] },
+          } as Feature<Polygon>,
+        });
+        map.addLayer({
+          id: LYR_FILL,
+          type: "fill",
+          source: SRC_POLYGON,
+          paint: { "fill-color": "#3b82f6", "fill-opacity": 0.15 },
+        });
+        map.addLayer({
+          id: LYR_OUTLINE,
+          type: "line",
+          source: SRC_POLYGON,
+          paint: { "line-color": "#3b82f6", "line-width": 1.5 },
+        });
       }
       if (!map.getSource(SRC_VERTICES)) {
-        map.addSource(SRC_VERTICES, { type: "geojson", data: { type: "FeatureCollection", features: [] } as FeatureCollection<Point> });
-        map.addLayer({ id: LYR_VERTICES, type: "circle", source: SRC_VERTICES, paint: { "circle-radius": 5, "circle-color": "#fff", "circle-stroke-color": "#3b82f6", "circle-stroke-width": 2 } });
+        map.addSource(SRC_VERTICES, {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          } as FeatureCollection<Point>,
+        });
+        map.addLayer({
+          id: LYR_VERTICES,
+          type: "circle",
+          source: SRC_VERTICES,
+          paint: {
+            "circle-radius": 5,
+            "circle-color": "#fff",
+            "circle-stroke-color": "#3b82f6",
+            "circle-stroke-width": 2,
+          },
+        });
       }
       if (!map.getSource(SRC_PREVIEW)) {
-        map.addSource(SRC_PREVIEW, { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } } as Feature<LineString> });
-        map.addLayer({ id: LYR_PREVIEW, type: "line", source: SRC_PREVIEW, paint: { "line-color": "#3b82f6", "line-width": 1.5, "line-dasharray": [4, 3], "line-opacity": 0.6 } });
+        map.addSource(SRC_PREVIEW, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [] },
+          } as Feature<LineString>,
+        });
+        map.addLayer({
+          id: LYR_PREVIEW,
+          type: "line",
+          source: SRC_PREVIEW,
+          paint: {
+            "line-color": "#3b82f6",
+            "line-width": 1.5,
+            "line-dasharray": [4, 3],
+            "line-opacity": 0.6,
+          },
+        });
       }
     };
 
-    if (map.isStyleLoaded()) init(); else map.once("styledata", init);
+    if (map.isStyleLoaded()) init();
+    else map.once("styledata", init);
 
     return () => {
-      [LYR_PREVIEW, LYR_VERTICES, LYR_OUTLINE, LYR_FILL].forEach((id) => { if (map.getLayer(id)) map.removeLayer(id); });
-      [SRC_PREVIEW, SRC_VERTICES, SRC_POLYGON].forEach((id) => { if (map.getSource(id)) map.removeSource(id); });
+      [LYR_PREVIEW, LYR_VERTICES, LYR_OUTLINE, LYR_FILL].forEach((id) => {
+        if (map.getLayer(id)) map.removeLayer(id);
+      });
+      [SRC_PREVIEW, SRC_VERTICES, SRC_POLYGON].forEach((id) => {
+        if (map.getSource(id)) map.removeSource(id);
+      });
     };
   }, [map]);
 
   // Effect 2: sync polygon + vertices
   useEffect(() => {
     if (!map || !map.getSource(SRC_POLYGON)) return;
-    const ring = polygonClosed && polygonCoords.length >= 3 ? [...polygonCoords, polygonCoords[0]] : [];
-    (map.getSource(SRC_POLYGON) as maplibregl.GeoJSONSource).setData({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: ring.length ? [ring] : [] } } as Feature<Polygon>);
-    (map.getSource(SRC_VERTICES) as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features: polygonCoords.map(([lng, lat], i) => ({ type: "Feature", properties: { index: i }, geometry: { type: "Point", coordinates: [lng, lat] } })) } as FeatureCollection<Point>);
+    const ring =
+      polygonClosed && polygonCoords.length >= 3
+        ? [...polygonCoords, polygonCoords[0]]
+        : [];
+    (map.getSource(SRC_POLYGON) as maplibregl.GeoJSONSource).setData({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "Polygon", coordinates: ring.length ? [ring] : [] },
+    } as Feature<Polygon>);
+    (map.getSource(SRC_VERTICES) as maplibregl.GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: polygonCoords.map(([lng, lat], i) => ({
+        type: "Feature",
+        properties: { index: i },
+        geometry: { type: "Point", coordinates: [lng, lat] },
+      })),
+    } as FeatureCollection<Point>);
   }, [map, polygonCoords, polygonClosed]);
 
   // Effect 3: preview line
   useEffect(() => {
     if (!map || !map.getSource(SRC_PREVIEW)) return;
-    const show = !polygonClosed && polygonCoords.length >= 1 && cursorPreview !== null;
-    (map.getSource(SRC_PREVIEW) as maplibregl.GeoJSONSource).setData({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: show ? [polygonCoords[polygonCoords.length - 1], cursorPreview] : [] } } as Feature<LineString>);
+    const show =
+      !polygonClosed && polygonCoords.length >= 1 && cursorPreview !== null;
+    (map.getSource(SRC_PREVIEW) as maplibregl.GeoJSONSource).setData({
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: show
+          ? [polygonCoords[polygonCoords.length - 1], cursorPreview]
+          : [],
+      },
+    } as Feature<LineString>);
   }, [map, cursorPreview, polygonCoords, polygonClosed]);
 
   // Effect 4: click + dblclick
@@ -105,7 +210,10 @@ export default function ToolSelect({
     const handleClick = (e: MapMouseEvent) => {
       if (tool !== 1 || polygonClosed) return;
       const now = Date.now();
-      if (now - lastClickTimeRef.current < DBLCLICK_MS) { lastClickTimeRef.current = 0; return; }
+      if (now - lastClickTimeRef.current < DBLCLICK_MS) {
+        lastClickTimeRef.current = 0;
+        return;
+      }
       lastClickTimeRef.current = now;
       setPolygonCoords((prev) => [...prev, [e.lngLat.lng, e.lngLat.lat]]);
     };
@@ -113,13 +221,28 @@ export default function ToolSelect({
     const handleDblClick = (e: MapMouseEvent) => {
       if (tool !== 1 || polygonClosed) return;
       e.preventDefault();
-      if (polygonCoords.length >= 3) { setPolygonClosed(true); setTool(0); setCursorPreview(null); lastClickTimeRef.current = 0; }
+      if (polygonCoords.length >= 3) {
+        setPolygonClosed(true);
+        setTool(0);
+        setCursorPreview(null);
+        lastClickTimeRef.current = 0;
+      }
     };
 
     map.on("click", handleClick);
     map.on("dblclick", handleDblClick);
-    return () => { map.off("click", handleClick); map.off("dblclick", handleDblClick); };
-  }, [map, tool, polygonClosed, polygonCoords.length, setPolygonCoords, setPolygonClosed]);
+    return () => {
+      map.off("click", handleClick);
+      map.off("dblclick", handleDblClick);
+    };
+  }, [
+    map,
+    tool,
+    polygonClosed,
+    polygonCoords.length,
+    setPolygonCoords,
+    setPolygonClosed,
+  ]);
 
   // Effect 5: mousemove cursor + preview
   useEffect(() => {
@@ -142,7 +265,10 @@ export default function ToolSelect({
       }
     };
     map.on("mousemove", handleMouseMove);
-    return () => { map.off("mousemove", handleMouseMove); if (!isDraggingRef.current) map.getCanvas().style.cursor = ""; };
+    return () => {
+      map.off("mousemove", handleMouseMove);
+      if (!isDraggingRef.current) map.getCanvas().style.cursor = "";
+    };
   }, [map, tool, polygonClosed, polygonCoords]);
 
   // Effect 6: vertex drag
@@ -151,52 +277,105 @@ export default function ToolSelect({
     const handleMouseDown = (e: MapMouseEvent) => {
       if (tool !== 0 || !polygonClosed || polygonCoords.length === 0) return;
       const point = map.project(e.lngLat);
-      let best = -1, bestDist = Infinity;
+      let best = -1,
+        bestDist = Infinity;
       polygonCoords.forEach(([lng, lat], i) => {
         const vp = map.project({ lng, lat });
         const d = (point.x - vp.x) ** 2 + (point.y - vp.y) ** 2;
-        if (d < 100 && d < bestDist) { bestDist = d; best = i; }
+        if (d < 100 && d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
       });
-      if (best >= 0) { dragIndexRef.current = best; isDraggingRef.current = true; map.dragPan.disable(); map.getCanvas().style.cursor = "grabbing"; e.preventDefault(); }
+      if (best >= 0) {
+        dragIndexRef.current = best;
+        isDraggingRef.current = true;
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = "grabbing";
+        e.preventDefault();
+      }
     };
     const handleMouseMoveDrag = (e: MapMouseEvent) => {
       if (!isDraggingRef.current || dragIndexRef.current === null) return;
       const pos: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      setPolygonCoords((prev) => { const n = [...prev]; n[dragIndexRef.current!] = pos; return n; });
+      setPolygonCoords((prev) => {
+        const n = [...prev];
+        n[dragIndexRef.current!] = pos;
+        return n;
+      });
     };
     const handleMouseUp = () => {
-      if (isDraggingRef.current) { isDraggingRef.current = false; dragIndexRef.current = null; map.dragPan.enable(); map.getCanvas().style.cursor = "grab"; }
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        dragIndexRef.current = null;
+        map.dragPan.enable();
+        map.getCanvas().style.cursor = "grab";
+      }
     };
     map.on("mousedown", handleMouseDown);
     map.on("mousemove", handleMouseMoveDrag);
     map.on("mouseup", handleMouseUp);
-    return () => { map.off("mousedown", handleMouseDown); map.off("mousemove", handleMouseMoveDrag); map.off("mouseup", handleMouseUp); map.dragPan.enable(); };
+    return () => {
+      map.off("mousedown", handleMouseDown);
+      map.off("mousemove", handleMouseMoveDrag);
+      map.off("mouseup", handleMouseUp);
+      map.dragPan.enable();
+    };
   }, [map, tool, polygonClosed, polygonCoords, setPolygonCoords]);
 
   if (!map) return null;
 
-  const handleReset = () => { setPolygonCoords([]); setPolygonClosed(false); setCursorPreview(null); setTool(0); if (map) map.getCanvas().style.cursor = ""; };
+  const handleReset = () => {
+    setPolygonCoords([]);
+    setPolygonClosed(false);
+    setCursorPreview(null);
+    setTool(0);
+    if (map) map.getCanvas().style.cursor = "";
+  };
 
   const hint = polygonClosed
     ? "Drag vertices to adjust"
     : tool === 1
-    ? polygonCoords.length === 0 ? "Click to place points" : polygonCoords.length < 3 ? `${polygonCoords.length} point${polygonCoords.length > 1 ? "s" : ""} — need ${3 - polygonCoords.length} more` : "Double-click to close"
-    : "Draw a region to constrain routes";
+      ? polygonCoords.length === 0
+        ? "Click to place points"
+        : polygonCoords.length < 3
+          ? `${polygonCoords.length} point${polygonCoords.length > 1 ? "s" : ""} — need ${3 - polygonCoords.length} more`
+          : "Double-click to close"
+      : "Draw a region to constrain routes";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <ToolBtn title="Mouse / Edit" active={tool === 0} onClick={() => { setTool(0); setCursorPreview(null); if (map) map.getCanvas().style.cursor = ""; }}>
+        <ToolBtn
+          title="Mouse / Edit"
+          active={tool === 0}
+          onClick={() => {
+            setTool(0);
+            setCursorPreview(null);
+            if (map) map.getCanvas().style.cursor = "";
+          }}
+        >
           {/* cursor icon */}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 0l16 12-7 2-4 8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 0l16 12-7 2-4 8z" />
+          </svg>
         </ToolBtn>
-        <ToolBtn title={polygonClosed ? "Reset to redraw" : "Draw region"} active={tool === 1} disabled={polygonClosed} onClick={() => setTool(1)}>
+        <ToolBtn
+          title={polygonClosed ? "Reset to redraw" : "Draw region"}
+          active={tool === 1}
+          disabled={polygonClosed}
+          onClick={() => setTool(1)}
+        >
           {/* pen icon */}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+          </svg>
         </ToolBtn>
         {polygonCoords.length > 0 && (
           <ToolBtn title="Clear region" onClick={handleReset}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
           </ToolBtn>
         )}
       </div>

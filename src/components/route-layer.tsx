@@ -63,7 +63,11 @@ export default function RouteLayer({ route }: RouteLayerProps) {
       if (!initializedRef.current) {
         if (!map.getSource(SRC)) {
           // lineMetrics: true is required for line-gradient
-          map.addSource(SRC, { type: "geojson", data: geojson, lineMetrics: true });
+          map.addSource(SRC, {
+            type: "geojson",
+            data: geojson,
+            lineMetrics: true,
+          });
         }
 
         if (!map.getLayer(LYR_CASING)) {
@@ -89,10 +93,15 @@ export default function RouteLayer({ route }: RouteLayerProps) {
             paint: {
               // Gradient: light blue (start) → royal blue (mid) → dark navy (end)
               "line-gradient": [
-                "interpolate", ["linear"], ["line-progress"],
-                0,    "#93c5fd",
-                0.5,  "#3b82f6",
-                1,    "#1e3a8a",
+                "interpolate",
+                ["linear"],
+                ["line-progress"],
+                0,
+                "#93c5fd",
+                0.5,
+                "#3b82f6",
+                1,
+                "#1e3a8a",
               ],
               "line-width": 4,
             },
@@ -122,7 +131,10 @@ export default function RouteLayer({ route }: RouteLayerProps) {
     if (map.isStyleLoaded()) {
       apply();
     } else {
-      const onLoad = () => { apply(); map.off("styledata", onLoad); };
+      const onLoad = () => {
+        apply();
+        map.off("styledata", onLoad);
+      };
       map.on("styledata", onLoad);
     }
   }, [map, route]);

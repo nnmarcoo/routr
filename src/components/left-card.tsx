@@ -5,7 +5,12 @@ import DistanceInput from "./range-select";
 import LocationSelect from "./location-select";
 import RouteLayer from "./route-layer";
 import RouteTimeline from "./route-timeline";
-import { ChevronLeft, ChevronRight, ArrowBackIosNew, ArrowForwardIos } from "@mui/icons-material";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ArrowBackIosNew,
+  ArrowForwardIos,
+} from "@mui/icons-material";
 import { RouteResult } from "../types";
 import { IconButton, Tooltip } from "@mui/material";
 
@@ -71,21 +76,32 @@ export default function LeftCard() {
             "&:hover": { background: "#fff" },
           }}
         >
-          {open ? <ChevronLeft fontSize="small" /> : <ChevronRight fontSize="small" />}
+          {open ? (
+            <ChevronLeft fontSize="small" />
+          ) : (
+            <ChevronRight fontSize="small" />
+          )}
         </IconButton>
       </Tooltip>
 
       <motion.div
         animate={{ x: open ? 0 : -320, opacity: open ? 1 : 0 }}
         transition={{ type: "tween", duration: 0.28 }}
-        style={{ position: "absolute", top: 16, left: 16, pointerEvents: open ? "auto" : "none" }}
+        style={{
+          position: "absolute",
+          top: 16,
+          left: 16,
+          pointerEvents: open ? "auto" : "none",
+        }}
       >
         <div style={panel}>
-
           {/* Location + routing */}
           <div style={section}>
             <LocationSelect
-              onRoutes={(r) => { setRoutes(r); setSelectedIndex(0); }}
+              onRoutes={(r) => {
+                setRoutes(r);
+                setSelectedIndex(0);
+              }}
               targetMiles={targetMiles}
               polygon={polygonClosed ? polygonCoords : undefined}
             />
@@ -104,25 +120,50 @@ export default function LeftCard() {
                 <div style={divider} />
                 <div style={{ ...section, paddingTop: 10, paddingBottom: 10 }}>
                   {/* Route picker */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 10,
+                    }}
+                  >
                     <IconButton
                       size="small"
                       onClick={() => setSelectedIndex((i) => i - 1)}
                       disabled={selectedIndex === 0}
-                      sx={{ color: "#cbd5e1", "&:not(:disabled)": { color: "#0f172a" }, p: 0.5 }}
+                      sx={{
+                        color: "#cbd5e1",
+                        "&:not(:disabled)": { color: "#0f172a" },
+                        p: 0.5,
+                      }}
                     >
                       <ArrowBackIosNew sx={{ fontSize: 14 }} />
                     </IconButton>
 
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", letterSpacing: "0.02em" }}>
-                        Route {selectedIndex + 1} <span style={{ color: "#94a3b8" }}>/ {routes.length}</span>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#0f172a",
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        Route {selectedIndex + 1}{" "}
+                        <span style={{ color: "#94a3b8" }}>
+                          / {routes.length}
+                        </span>
                       </div>
-                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
+                      <div
+                        style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}
+                      >
                         {selectedRoute?.distanceMiles.toFixed(2)} mi
                         {" · "}
                         {(() => {
-                          const m = Math.round(selectedRoute?.durationMinutes ?? 0);
+                          const m = Math.round(
+                            selectedRoute?.durationMinutes ?? 0,
+                          );
                           const h = Math.floor(m / 60);
                           const rem = m % 60;
                           return h > 0 ? `${h}h ${rem}m` : `${m}m`;
@@ -134,7 +175,11 @@ export default function LeftCard() {
                       size="small"
                       onClick={() => setSelectedIndex((i) => i + 1)}
                       disabled={selectedIndex === routes.length - 1}
-                      sx={{ color: "#cbd5e1", "&:not(:disabled)": { color: "#0f172a" }, p: 0.5 }}
+                      sx={{
+                        color: "#cbd5e1",
+                        "&:not(:disabled)": { color: "#0f172a" },
+                        p: 0.5,
+                      }}
                     >
                       <ArrowForwardIos sx={{ fontSize: 14 }} />
                     </IconButton>
@@ -158,7 +203,16 @@ export default function LeftCard() {
 
           {/* Drawing tools */}
           <div style={{ ...section, paddingTop: 10, paddingBottom: 10 }}>
-            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#94a3b8",
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
               Region
             </div>
             <ToolSelect
@@ -168,7 +222,6 @@ export default function LeftCard() {
               setPolygonClosed={setPolygonClosed}
             />
           </div>
-
         </div>
       </motion.div>
     </>

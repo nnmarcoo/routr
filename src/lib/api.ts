@@ -74,13 +74,19 @@ function legsToResult(data: Record<string, unknown>): RouteResult | null {
 
 // 2D segment intersection test.
 function segmentsIntersect(
-  ax: number, ay: number,
-  bx: number, by: number,
-  cx: number, cy: number,
-  dx: number, dy: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ): boolean {
-  const d1x = bx - ax, d1y = by - ay;
-  const d2x = dx - cx, d2y = dy - cy;
+  const d1x = bx - ax,
+    d1y = by - ay;
+  const d2x = dx - cx,
+    d2y = dy - cy;
   const cross = d1x * d2y - d1y * d2x;
   if (Math.abs(cross) < 1e-12) return false;
   const t = ((cx - ax) * d2y - (cy - ay) * d2x) / cross;
@@ -123,7 +129,9 @@ async function fetchHighwayGeometry(
       data.elements ?? [];
     return ways
       .filter((w) => w.geometry?.length >= 2)
-      .map((w) => w.geometry.map(({ lat, lon }) => [lon, lat] as [number, number]));
+      .map((w) =>
+        w.geometry.map(({ lat, lon }) => [lon, lat] as [number, number]),
+      );
   } catch {
     return [];
   }
@@ -153,8 +161,10 @@ const RUNNING_COSTING_OPTIONS = {
 // find fundamentally different road networks.
 
 type ShapeFn = (
-  startLng: number, startLat: number,
-  dLng: number, dLat: number,
+  startLng: number,
+  startLat: number,
+  dLng: number,
+  dLat: number,
   rotation: number,
 ) => Array<[number, number]>;
 
@@ -218,7 +228,12 @@ const shapeFigureEight: ShapeFn = (slng, slat, dLng, dLat, rot) => {
   return pts;
 };
 
-const SHAPES: ShapeFn[] = [shapeCircle, shapeTeardrop, shapeOffsetLobe, shapeFigureEight];
+const SHAPES: ShapeFn[] = [
+  shapeCircle,
+  shapeTeardrop,
+  shapeOffsetLobe,
+  shapeFigureEight,
+];
 
 // ─── Waypoint placement ───────────────────────────────────────────────────────
 
@@ -228,8 +243,10 @@ function placeWaypoint(
   highways: Array<[number, number][]>,
   polygon?: [number, number][],
 ): boolean {
-  const polygonOk = !polygon || polygon.length < 3 || isPointInPolygon(candidate, polygon);
-  const highwayOk = highways.length === 0 || !crossesHighway(start, candidate, highways);
+  const polygonOk =
+    !polygon || polygon.length < 3 || isPointInPolygon(candidate, polygon);
+  const highwayOk =
+    highways.length === 0 || !crossesHighway(start, candidate, highways);
   return polygonOk && highwayOk;
 }
 
@@ -251,11 +268,15 @@ function makeWaypointsFromShape(
     if (placeWaypoint(candidate, start, highways, polygon)) return candidate;
     // Try nudging outward in 15° increments
     const [cx, cy] = candidate;
-    const dx = cx - startLng, dy = cy - startLat;
+    const dx = cx - startLng,
+      dy = cy - startLat;
     const baseAngle = Math.atan2(dy / dLat, dx / dLng);
     for (let attempt = 1; attempt <= 24; attempt++) {
       const a = baseAngle + (attempt * Math.PI) / 12;
-      const nudged: [number, number] = [startLng + dLng * Math.cos(a), startLat + dLat * Math.sin(a)];
+      const nudged: [number, number] = [
+        startLng + dLng * Math.cos(a),
+        startLat + dLat * Math.sin(a),
+      ];
       if (placeWaypoint(nudged, start, highways, polygon)) return nudged;
     }
     return candidate; // fallback: use raw position
@@ -265,9 +286,14 @@ function makeWaypointsFromShape(
 // ─── Route quality scoring ────────────────────────────────────────────────────
 
 // Returns the fraction of route coordinates that lie inside the polygon (0–1).
-function routeInsideFraction(coords: [number, number][], polygon: [number, number][]): number {
+function routeInsideFraction(
+  coords: [number, number][],
+  polygon: [number, number][],
+): number {
   if (coords.length === 0) return 1;
-  return coords.filter((c) => isPointInPolygon(c, polygon)).length / coords.length;
+  return (
+    coords.filter((c) => isPointInPolygon(c, polygon)).length / coords.length
+  );
 }
 
 // Measure how much the route doubles back on itself.
@@ -299,7 +325,14 @@ async function fetchLoopVariant(
   polygon?: [number, number][],
 ): Promise<RouteResult | null> {
   try {
-    const waypoints = makeWaypointsFromShape(start, radiusMeters, shape, rotation, highways, polygon);
+    const waypoints = makeWaypointsFromShape(
+      start,
+      radiusMeters,
+      shape,
+      rotation,
+      highways,
+      polygon,
+    );
 
     const body: Record<string, unknown> = {
       locations: [
@@ -328,7 +361,8 @@ async function fetchLoopVariant(
     }
 
     // Attach backtrack score so we can sort later
-    (result as RouteResult & { _backtrack?: number })._backtrack = backtrachRatio(result.coordinates);
+    (result as RouteResult & { _backtrack?: number })._backtrack =
+      backtrachRatio(result.coordinates);
 
     return result;
   } catch {
@@ -349,7 +383,9 @@ function routeCells(coords: [number, number][]): Set<string> {
 
 function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   let intersection = 0;
-  for (const cell of a) { if (b.has(cell)) intersection++; }
+  for (const cell of a) {
+    if (b.has(cell)) intersection++;
+  }
   return intersection / (a.size + b.size - intersection);
 }
 
@@ -359,7 +395,9 @@ function deduplicateRoutes(routes: RouteResult[]): RouteResult[] {
   for (const r of routes) {
     const cells = routeCells(r.coordinates);
     // Stricter threshold: 45% overlap = too similar
-    const isDupe = uniqueCells.some((uc) => jaccardSimilarity(cells, uc) > 0.45);
+    const isDupe = uniqueCells.some(
+      (uc) => jaccardSimilarity(cells, uc) > 0.45,
+    );
     if (!isDupe) {
       unique.push(r);
       uniqueCells.push(cells);
@@ -378,7 +416,11 @@ export async function getLoopRoutes(
   const targetMeters = targetMiles * 1609.34;
   const baseRadius = targetMeters / (2 * Math.PI * 1.8);
 
-  const highways = await fetchHighwayGeometry(start[1], start[0], baseRadius * 1.6);
+  const highways = await fetchHighwayGeometry(
+    start[1],
+    start[0],
+    baseRadius * 1.6,
+  );
 
   // 4 shapes × 6 rotations × 3 scales = 72 jobs, but we cap at 24 concurrent
   // by batching so we don't overwhelm the public Valhalla instance.
@@ -389,7 +431,16 @@ export async function getLoopRoutes(
   for (const shape of SHAPES) {
     for (const rot of rotations) {
       for (const scale of radiusScales) {
-        jobs.push(fetchLoopVariant(start, baseRadius * scale, shape, rot, highways, polygon));
+        jobs.push(
+          fetchLoopVariant(
+            start,
+            baseRadius * scale,
+            shape,
+            rot,
+            highways,
+            polygon,
+          ),
+        );
       }
     }
   }
@@ -414,7 +465,8 @@ export async function getLoopRoutes(
   // Sort: primarily by closeness to target distance, secondarily by low backtrack ratio
   valid.sort((a, b) => {
     const distScore =
-      Math.abs(a.distanceMiles - targetMiles) - Math.abs(b.distanceMiles - targetMiles);
+      Math.abs(a.distanceMiles - targetMiles) -
+      Math.abs(b.distanceMiles - targetMiles);
     if (Math.abs(distScore) > 0.3) return distScore;
     const ab = (a as RouteResult & { _backtrack?: number })._backtrack ?? 0;
     const bb = (b as RouteResult & { _backtrack?: number })._backtrack ?? 0;

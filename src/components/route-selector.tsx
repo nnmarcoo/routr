@@ -9,7 +9,11 @@ interface RouteSelectorProps {
   onSelect: (index: number) => void;
 }
 
-export default function RouteSelector({ routes, selectedIndex, onSelect }: RouteSelectorProps) {
+export default function RouteSelector({
+  routes,
+  selectedIndex,
+  onSelect,
+}: RouteSelectorProps) {
   if (routes.length === 0) return null;
 
   const route = routes[selectedIndex];
@@ -20,7 +24,12 @@ export default function RouteSelector({ routes, selectedIndex, onSelect }: Route
   const duration = hrs > 0 ? `${hrs}h ${remMins}m` : `${mins}m`;
 
   return (
-    <Stack direction="row" alignItems="center" justifyContent="space-between" width="100%">
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      width="100%"
+    >
       <IconButton
         size="small"
         onClick={() => onSelect(selectedIndex - 1)}

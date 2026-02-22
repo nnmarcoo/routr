@@ -1,6 +1,10 @@
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui,
+    sans-serif;
 }
 
 body {
