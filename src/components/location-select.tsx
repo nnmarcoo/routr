@@ -184,12 +184,16 @@ export default function LocationSelect({
   const [endOptions, setEndOptions] = useState<PhotonResult[]>([]);
   const [loop, setLoop] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [foundCount, setFoundCount] = useState(0);
   const [routeError, setRouteError] = useState<string | null>(null);
 
   const startDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startMarker = useRef<Marker | null>(null);
   const endMarker = useRef<Marker | null>(null);
+  // Track previous location IDs so we only fly when a location actually changes
+  const prevStartId = useRef<number | null>(null);
+  const prevEndId = useRef<number | null>(null);
 
   const debouncedGeocode = useCallback(
     (
@@ -213,12 +217,19 @@ export default function LocationSelect({
     startMarker.current = null;
     endMarker.current = null;
 
+    const startChanged = (start?.id ?? null) !== prevStartId.current;
+    const endChanged = (end?.id ?? null) !== prevEndId.current;
+    prevStartId.current = start?.id ?? null;
+    prevEndId.current = end?.id ?? null;
+
     if (loop) {
       if (start?.coordinates) {
         startMarker.current = new Marker({ color: "#2563eb" })
           .setLngLat(start.coordinates)
           .addTo(mapInstance);
-        map.flyTo({ center: start.coordinates, zoom: 13 });
+        if (startChanged) {
+          map.flyTo({ center: start.coordinates, zoom: 13 });
+        }
       }
     } else {
       if (start?.coordinates) {
@@ -237,12 +248,14 @@ export default function LocationSelect({
         (start.coordinates[0] !== end.coordinates[0] ||
           start.coordinates[1] !== end.coordinates[1])
       ) {
-        const bounds = new LngLatBounds(start.coordinates, start.coordinates);
-        bounds.extend(end.coordinates);
-        map.fitBounds(bounds, { padding: 80, duration: 800 });
-      } else if (start?.coordinates) {
+        if (startChanged || endChanged) {
+          const bounds = new LngLatBounds(start.coordinates, start.coordinates);
+          bounds.extend(end.coordinates);
+          map.fitBounds(bounds, { padding: 80, duration: 800 });
+        }
+      } else if (start?.coordinates && startChanged) {
         map.flyTo({ center: start.coordinates, zoom: 13 });
-      } else if (end?.coordinates) {
+      } else if (end?.coordinates && endChanged) {
         map.flyTo({ center: end.coordinates, zoom: 13 });
       }
     }
@@ -261,12 +274,20 @@ export default function LocationSelect({
   const handleGetRoute = async () => {
     if (!start) return;
     setLoading(true);
+    setFoundCount(0);
     setRouteError(null);
     onRoutes([]);
 
     let results: RouteResult[] = [];
     if (loop) {
-      results = await getLoopRoutes(start.coordinates, targetMiles, polygon);
+      results = await getLoopRoutes(
+        start.coordinates,
+        targetMiles,
+        polygon,
+        () => {
+          setFoundCount((n) => n + 1);
+        },
+      );
     } else if (end) {
       results = await getRoutes(start.coordinates, end.coordinates);
     }
@@ -398,7 +419,11 @@ export default function LocationSelect({
             }}
           >
             {loading && <Spinner />}
-            {loading ? "Finding routes…" : "Get Route"}
+            {loading
+              ? foundCount > 0
+                ? `Found ${foundCount}…`
+                : "Finding routes…"
+              : "Get Route"}
           </button>
         </div>
 

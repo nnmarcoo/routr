@@ -23,6 +23,23 @@ export async function getLocation() {
   return middleOfUSA;
 }
 
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6_371_000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function decodePolyline(encoded: string, precision = 6): [number, number][] {
   const factor = Math.pow(10, precision);
   const coords: [number, number][] = [];
@@ -119,7 +136,7 @@ async function fetchHighwayGeometry(
   try {
     const searchRadius = Math.round(radiusMeters);
     const query = `[out:json][timeout:8];(way["highway"~"^(motorway|trunk|motorway_link|trunk_link|primary|primary_link)$"](around:${searchRadius},${centerLat},${centerLng}););out geom;`;
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
+    const res = await fetch("https://overpass.kumi.systems/api/interpreter", {
       method: "POST",
       body: query,
     });
@@ -135,6 +152,350 @@ async function fetchHighwayGeometry(
   } catch {
     return [];
   }
+}
+
+// ─── OSM walkable graph types ─────────────────────────────────────────────────
+
+interface GraphNode {
+  lat: number;
+  lon: number;
+  neighbors: Array<{ nodeId: number; distMeters: number }>;
+}
+type WalkGraph = Map<number, GraphNode>;
+interface DfsCandidate {
+  nodeIds: number[];
+  totalDist: number;
+}
+
+function computeOverpassRadius(targetMeters: number): number {
+  // A loop of circumference C roughly fits in a circle of radius C/(2π).
+  // Multiply by 1.8 to give the DFS room to explore diverse directions and
+  // find routes that aren't just a tight circle around the start.
+  return Math.max(800, Math.min(25_000, Math.round((targetMeters / (2 * Math.PI)) * 1.8)));
+}
+
+async function fetchWalkableGraph(
+  centerLat: number,
+  centerLon: number,
+  radiusMeters: number,
+): Promise<WalkGraph> {
+  try {
+    const r = Math.round(radiusMeters);
+    // "out geom" embeds full node geometry directly into each way element,
+    // giving us every shape point at full OSM coordinate precision.
+    const query = `[out:json][timeout:30];(way["highway"~"^(footway|path|pedestrian|residential|living_street|cycleway|track|service|unclassified|tertiary|secondary)$"]["access"!="private"](around:${r},${centerLat},${centerLon}););out geom;`;
+    const res = await fetch("https://overpass.kumi.systems/api/interpreter", {
+      method: "POST",
+      body: query,
+    });
+    if (!res.ok) return new Map();
+
+    const data = await res.json();
+    const elements: Array<{
+      type: string;
+      id: number;
+      geometry?: Array<{ lat: number; lon: number }>;
+    }> = data.elements ?? [];
+
+    // OSM stores coordinates at 7 decimal places (≈1cm precision).
+    // Two geometry points with identical lat/lon strings are the *same OSM node*,
+    // so we can detect intersections in O(n) using a coordinate → canonical-ID map,
+    // without any distance calculations.
+    const coordKey = (lat: number, lon: number) =>
+      `${lat.toFixed(7)},${lon.toFixed(7)}`;
+
+    // Pass 1: assign every unique coordinate a stable canonical node ID.
+    let nextId = 1;
+    const coordToId = new Map<string, number>();
+    const graph: WalkGraph = new Map();
+
+    const getOrCreate = (lat: number, lon: number): number => {
+      const key = coordKey(lat, lon);
+      let id = coordToId.get(key);
+      if (id === undefined) {
+        id = nextId++;
+        coordToId.set(key, id);
+        graph.set(id, { lat, lon, neighbors: [] });
+      }
+      return id;
+    };
+
+    // Pass 2: build edges. Because getOrCreate deduplicates by coordinate,
+    // two ways sharing a node automatically get the same ID — intersections
+    // are connected for free, including T-junctions and midpoint crossings.
+    const addEdge = (aId: number, bId: number, d: number) => {
+      const a = graph.get(aId)!;
+      const b = graph.get(bId)!;
+      if (!a.neighbors.some((n) => n.nodeId === bId))
+        a.neighbors.push({ nodeId: bId, distMeters: d });
+      if (!b.neighbors.some((n) => n.nodeId === aId))
+        b.neighbors.push({ nodeId: aId, distMeters: d });
+    };
+
+    for (const el of elements) {
+      if (el.type !== "way" || !el.geometry || el.geometry.length < 2) continue;
+      const pts = el.geometry;
+      let prevId = getOrCreate(pts[0].lat, pts[0].lon);
+      for (let i = 1; i < pts.length; i++) {
+        const curId = getOrCreate(pts[i].lat, pts[i].lon);
+        const d = haversineMeters(
+          pts[i - 1].lat,
+          pts[i - 1].lon,
+          pts[i].lat,
+          pts[i].lon,
+        );
+        addEdge(prevId, curId, d);
+        prevId = curId;
+      }
+    }
+
+    return graph;
+  } catch {
+    return new Map();
+  }
+}
+
+function snapToNearestNode(
+  graph: WalkGraph,
+  lng: number,
+  lat: number,
+): number | null {
+  let bestId: number | null = null;
+  let bestDist = Infinity;
+  for (const [id, node] of graph) {
+    const d = haversineMeters(lat, lng, node.lat, node.lon);
+    if (d < bestDist) {
+      bestDist = d;
+      bestId = id;
+    }
+  }
+  return bestId;
+}
+
+// ─── DFS loop finder ─────────────────────────────────────────────────────────
+//
+// Uses parent-pointer reconstruction instead of copying path arrays on every
+// push. Each stack frame stores only (nodeId, parentFrameIndex, dist,
+// visitedEdges, cellCounts) — no O(n) copies, no GC pressure.
+//
+// Cell-count map (O(1) lookup) replaces the O(path.length) scan.
+//
+// Each DFS run now collects up to MAX_RESULTS_PER_RUN valid closures instead
+// of stopping at the first one — giving much more variety per directional pass.
+// At intersection nodes (degree ≥ 3) neighbors are shuffled so the DFS
+// branches in structurally different directions.
+
+function findIntersectionNodes(graph: WalkGraph): Set<number> {
+  const intersections = new Set<number>();
+  for (const [id, node] of graph) {
+    if (node.neighbors.length >= 3) intersections.add(id);
+  }
+  return intersections;
+}
+
+interface DfsFrame {
+  nodeId: number;
+  parentIdx: number; // index into frames[], -1 for root
+  depth: number;     // distance from root in hops
+  dist: number;
+  visitedEdges: Set<string>;
+  cellCounts: Map<string, number>; // ~500m grid cell → visit count
+}
+
+function reconstructPath(frames: DfsFrame[], frameIdx: number): number[] {
+  const path: number[] = [];
+  let idx = frameIdx;
+  while (idx !== -1) {
+    path.push(frames[idx].nodeId);
+    idx = frames[idx].parentIdx;
+  }
+  path.reverse();
+  return path;
+}
+
+function cellKey(lon: number, lat: number): string {
+  // ~500m grid — coarse enough that the DFS can leave the start area
+  // before hitting the revisit cap, while still preventing tight loops.
+  return `${Math.round(lon / 0.005)},${Math.round(lat / 0.005)}`;
+}
+
+function runSingleDfs(
+  graph: WalkGraph,
+  startId: number,
+  startNode: GraphNode,
+  targetMeters: number,
+  minDist: number,
+  maxDist: number,
+  polygon: [number, number][] | undefined,
+  globalUsedEdges: Set<string>,
+  runIndex: number,
+  numCandidates: number,
+  intersectionNodes: Set<number>,
+): DfsCandidate[] {
+  // Depth limit: average OSM segment in dense areas is ~10-20m, so a 5-mile
+  // (8km) route needs at most ~800 segments. Allow 20% headroom.
+  const MAX_DEPTH = Math.min(1000, Math.ceil((targetMeters / 15) * 1.2));
+  const MAX_NODES_EXPLORED = 200_000;
+  // Collect up to this many distinct closures per directional pass
+  const MAX_RESULTS_PER_RUN = 4;
+  const runAngle = (runIndex / numCandidates) * 2 * Math.PI;
+
+  const frames: DfsFrame[] = [];
+  const stack: number[] = [];
+
+  const rootFrame: DfsFrame = {
+    nodeId: startId,
+    parentIdx: -1,
+    depth: 0,
+    dist: 0,
+    visitedEdges: new Set<string>(),
+    cellCounts: new Map<string, number>(),
+  };
+  frames.push(rootFrame);
+  stack.push(0);
+
+  let nodesExplored = 0;
+  const results: DfsCandidate[] = [];
+
+  while (
+    stack.length > 0 &&
+    nodesExplored < MAX_NODES_EXPLORED &&
+    results.length < MAX_RESULTS_PER_RUN
+  ) {
+    nodesExplored++;
+    const frameIdx = stack.pop()!;
+    const frame = frames[frameIdx];
+    const { nodeId, depth, dist, visitedEdges, cellCounts } = frame;
+    const node = graph.get(nodeId);
+    if (!node) continue;
+
+    if (depth > MAX_DEPTH) continue;
+
+    // Check if we can close the loop — only after we've gone far enough
+    if (depth > 4 && dist >= minDist && dist <= maxDist) {
+      const closeDist = haversineMeters(
+        node.lat, node.lon, startNode.lat, startNode.lon,
+      );
+      if (closeDist < targetMeters * 0.08) {
+        // Valid closure — record it and keep exploring for more
+        const nodeIds = [...reconstructPath(frames, frameIdx), startId];
+        results.push({ nodeIds, totalDist: dist });
+        // Don't continue expanding from this frame — the loop is closed
+        continue;
+      }
+    }
+
+    if (dist > maxDist) continue;
+
+    const isIntersection = intersectionNodes.has(nodeId);
+
+    // At intersections: shuffle neighbors so the DFS branches in different
+    // directions on each call, producing structurally distinct routes.
+    // On plain segments: sort by angle-alignment so we trend toward runAngle.
+    let neighbors = [...node.neighbors];
+    if (isIntersection) {
+      // Fisher-Yates shuffle — O(n), deterministic per runIndex so reruns
+      // with the same seed explore the same order (reproducible enough)
+      for (let i = neighbors.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.abs(Math.sin(runIndex * 13 + i * 7 + depth)) * (i + 1));
+        [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+      }
+    } else {
+      neighbors.sort((a, b) => {
+        const aUsed = globalUsedEdges.has(`${nodeId}-${a.nodeId}`) ? 1 : 0;
+        const bUsed = globalUsedEdges.has(`${nodeId}-${b.nodeId}`) ? 1 : 0;
+        if (aUsed !== bUsed) return aUsed - bUsed;
+        const aN = graph.get(a.nodeId);
+        const bN = graph.get(b.nodeId);
+        if (!aN || !bN) return 0;
+        const aAngle = Math.atan2(aN.lat - node.lat, aN.lon - node.lon);
+        const bAngle = Math.atan2(bN.lat - node.lat, bN.lon - node.lon);
+        const aDiff = Math.abs(((aAngle - runAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+        const bDiff = Math.abs(((bAngle - runAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+        return aDiff - bDiff;
+      });
+    }
+
+    // Push children in reverse so the first-preferred is explored first (LIFO)
+    for (let i = neighbors.length - 1; i >= 0; i--) {
+      const { nodeId: nextId, distMeters } = neighbors[i];
+      const edgeKey = `${nodeId}-${nextId}`;
+      if (visitedEdges.has(edgeKey)) continue;
+
+      const nextNode = graph.get(nextId);
+      if (!nextNode) continue;
+
+      if (polygon && polygon.length >= 3) {
+        if (!isPointInPolygon([nextNode.lon, nextNode.lat], polygon)) continue;
+      }
+
+      const newDist = dist + distMeters;
+
+      // Admissibility pruning: even if we beeline back, would we overshoot?
+      const closingDist = haversineMeters(
+        nextNode.lat, nextNode.lon, startNode.lat, startNode.lon,
+      );
+      if (newDist + closingDist > maxDist * 1.15) continue;
+
+      // Cell backtrack limit: O(1) via inherited count map
+      const ck = cellKey(nextNode.lon, nextNode.lat);
+      if ((cellCounts.get(ck) ?? 0) >= 3) continue;
+
+      // Build child frame — copy only the small sets/maps (not path arrays)
+      const newVisited = new Set(visitedEdges);
+      newVisited.add(edgeKey);
+      const newCells = new Map(cellCounts);
+      newCells.set(ck, (newCells.get(ck) ?? 0) + 1);
+
+      const childFrame: DfsFrame = {
+        nodeId: nextId,
+        parentIdx: frameIdx,
+        depth: depth + 1,
+        dist: newDist,
+        visitedEdges: newVisited,
+        cellCounts: newCells,
+      };
+      frames.push(childFrame);
+      stack.push(frames.length - 1);
+    }
+  }
+
+  return results;
+}
+
+async function dfsLoopCandidates(
+  graph: WalkGraph,
+  startId: number,
+  targetMeters: number,
+  polygon: [number, number][] | undefined,
+  numRuns: number,
+): Promise<DfsCandidate[]> {
+  const minDist = targetMeters * 0.75;
+  const maxDist = targetMeters * 1.35;
+  const startNode = graph.get(startId);
+  if (!startNode) return [];
+
+  const intersectionNodes = findIntersectionNodes(graph);
+  const results: DfsCandidate[] = [];
+  const globalUsedEdges = new Set<string>();
+
+  for (let run = 0; run < numRuns; run++) {
+    const candidates = runSingleDfs(
+      graph, startId, startNode, targetMeters,
+      minDist, maxDist, polygon, globalUsedEdges, run, numRuns,
+      intersectionNodes,
+    );
+    for (const candidate of candidates) {
+      results.push(candidate);
+      // Mark this candidate's edges as used so later runs explore fresh roads
+      for (let i = 0; i < candidate.nodeIds.length - 1; i++) {
+        globalUsedEdges.add(`${candidate.nodeIds[i]}-${candidate.nodeIds[i + 1]}`);
+        globalUsedEdges.add(`${candidate.nodeIds[i + 1]}-${candidate.nodeIds[i]}`);
+      }
+    }
+  }
+
+  return results;
 }
 
 const RUNNING_COSTING_OPTIONS = {
@@ -406,60 +767,180 @@ function deduplicateRoutes(routes: RouteResult[]): RouteResult[] {
   return unique;
 }
 
+// ─── DFS candidate → Valhalla validation ─────────────────────────────────────
+
+function downsamplePath(
+  nodeIds: number[],
+  graph: WalkGraph,
+  targetCount = 10,
+): Array<[number, number]> {
+  const resolve = (id: number): [number, number] | null => {
+    const n = graph.get(id);
+    return n ? [n.lon, n.lat] : null;
+  };
+  if (nodeIds.length <= targetCount) {
+    return nodeIds.map(resolve).filter((c): c is [number, number] => c !== null);
+  }
+  const sampled: Array<[number, number]> = [];
+  for (let i = 0; i < targetCount; i++) {
+    const idx = Math.round((i * (nodeIds.length - 1)) / (targetCount - 1));
+    const coord = resolve(nodeIds[Math.min(idx, nodeIds.length - 1)]);
+    if (coord) sampled.push(coord);
+  }
+  return sampled;
+}
+
+async function fetchLoopFromCandidate(
+  start: [number, number],
+  candidate: DfsCandidate,
+  graph: WalkGraph,
+  polygon?: [number, number][],
+): Promise<RouteResult | null> {
+  try {
+    const throughCoords = downsamplePath(candidate.nodeIds, graph, 10);
+
+    const body: Record<string, unknown> = {
+      locations: [
+        { lon: start[0], lat: start[1], type: "break" },
+        ...throughCoords.map(([lon, lat]) => ({ lon, lat, type: "through" })),
+        { lon: start[0], lat: start[1], type: "break" },
+      ],
+      costing: "pedestrian",
+      costing_options: RUNNING_COSTING_OPTIONS,
+      directions_options: { units: "miles" },
+    };
+
+    const res = await fetch("https://valhalla1.openstreetmap.de/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) return null;
+    const result = legsToResult(await res.json());
+    if (!result) return null;
+
+    if (polygon && polygon.length >= 3) {
+      if (routeInsideFraction(result.coordinates, polygon) < 0.8) return null;
+    }
+
+    (result as RouteResult & { _backtrack?: number })._backtrack =
+      backtrachRatio(result.coordinates);
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+async function geometricFallback(
+  start: [number, number],
+  targetMeters: number,
+  highways: Array<[number, number][]>,
+  polygon?: [number, number][],
+): Promise<RouteResult[]> {
+  const baseRadius = targetMeters / (2 * Math.PI * 1.8);
+  const rotations = Array.from({ length: 4 }, (_, i) => (i * Math.PI * 2) / 4);
+  const jobs: Array<Promise<RouteResult | null>> = [];
+  for (const shape of SHAPES) {
+    for (const rot of rotations) {
+      jobs.push(
+        fetchLoopVariant(start, baseRadius, shape, rot, highways, polygon),
+      );
+    }
+  }
+  const results = await Promise.all(jobs);
+  return results.filter((r): r is RouteResult => r !== null);
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
+
+// Validates candidates concurrently and streams each result via onProgress
+// as soon as it arrives. Uses a mutex-style accumulator to avoid race
+// conditions when multiple fetches resolve at nearly the same time.
+async function validateCandidatesStreaming(
+  candidates: DfsCandidate[],
+  start: [number, number],
+  graph: WalkGraph,
+  polygon: [number, number][] | undefined,
+  onProgress: ((route: RouteResult) => void) | undefined,
+): Promise<RouteResult[]> {
+  const accumulated: RouteResult[] = [];
+  await Promise.all(
+    candidates.map(async (c) => {
+      const result = await fetchLoopFromCandidate(start, c, graph, polygon);
+      if (result) {
+        // Push first, then notify — accumulated is append-only so no race
+        // between concurrent async callbacks (JS is single-threaded; push
+        // completes atomically before the next microtask can run).
+        accumulated.push(result);
+        onProgress?.(result);
+      }
+    }),
+  );
+  return accumulated;
+}
 
 export async function getLoopRoutes(
   start: [number, number],
   targetMiles: number,
   polygon?: [number, number][],
+  onProgress?: (route: RouteResult) => void,
 ): Promise<RouteResult[]> {
   const targetMeters = targetMiles * 1609.34;
-  const baseRadius = targetMeters / (2 * Math.PI * 1.8);
+  const overpassRadius = computeOverpassRadius(targetMeters);
+  const [startLon, startLat] = start;
 
-  const highways = await fetchHighwayGeometry(
-    start[1],
-    start[0],
-    baseRadius * 1.6,
-  );
+  // Fetch highway geometry (for fallback) and walkable graph in parallel
+  const [highways, graph] = await Promise.all([
+    fetchHighwayGeometry(startLat, startLon, overpassRadius * 1.2),
+    fetchWalkableGraph(startLat, startLon, overpassRadius),
+  ]);
 
-  // 4 shapes × 6 rotations × 3 scales = 72 jobs, but we cap at 24 concurrent
-  // by batching so we don't overwhelm the public Valhalla instance.
-  const rotations = Array.from({ length: 6 }, (_, i) => (i * Math.PI) / 3);
-  const radiusScales = [0.8, 1.0, 1.25];
+  let valid: RouteResult[] = [];
 
-  const jobs: Array<Promise<RouteResult | null>> = [];
-  for (const shape of SHAPES) {
-    for (const rot of rotations) {
-      for (const scale of radiusScales) {
-        jobs.push(
-          fetchLoopVariant(
-            start,
-            baseRadius * scale,
-            shape,
-            rot,
-            highways,
-            polygon,
-          ),
-        );
-      }
+  const startNodeId = snapToNearestNode(graph, startLon, startLat);
+
+  if (startNodeId !== null && graph.size > 50) {
+    const candidates = await dfsLoopCandidates(
+      graph,
+      startNodeId,
+      targetMeters,
+      polygon,
+      12,
+    );
+
+    if (candidates.length > 0) {
+      valid = await validateCandidatesStreaming(
+        candidates,
+        start,
+        graph,
+        polygon,
+        onProgress,
+      );
     }
   }
 
-  const results = await Promise.all(jobs);
-  let valid = results.filter((r): r is RouteResult => r !== null);
-
-  // Polygon fallback: if all routes were rejected, retry without polygon constraint
-  if (valid.length === 0 && polygon && polygon.length >= 3) {
-    const fallback = await Promise.all(
-      SHAPES.flatMap((shape) =>
-        rotations.flatMap((rot) =>
-          radiusScales.map((scale) =>
-            fetchLoopVariant(start, baseRadius * scale, shape, rot, highways),
-          ),
-        ),
-      ),
+  // Fallback: geometric waypoint sweep (4 shapes × 4 rotations = 16 calls)
+  // when DFS produces fewer than 4 routable candidates.
+  if (valid.length < 4) {
+    const fallbackRoutes = await geometricFallback(
+      start,
+      targetMeters,
+      highways,
+      polygon,
     );
-    valid = fallback.filter((r): r is RouteResult => r !== null);
+    valid = [...valid, ...fallbackRoutes];
+
+    // If polygon caused everything to be rejected, retry without it
+    if (valid.length === 0 && polygon && polygon.length >= 3) {
+      const noPolyFallback = await geometricFallback(
+        start,
+        targetMeters,
+        highways,
+      );
+      valid = noPolyFallback;
+    }
   }
 
   // Sort: primarily by closeness to target distance, secondarily by low backtrack ratio
@@ -473,7 +954,7 @@ export async function getLoopRoutes(
     return ab - bb;
   });
 
-  return deduplicateRoutes(valid);
+  return deduplicateRoutes(valid).slice(0, 8);
 }
 
 export async function getRoutes(

@@ -119,7 +119,7 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
       <div
         style={{
           position: "relative",
-          height: 20,
+          height: 28,
           display: "flex",
           alignItems: "center",
         }}
@@ -130,7 +130,7 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             position: "absolute",
             left: 0,
             right: 0,
-            height: 3,
+            height: 4,
             borderRadius: 2,
             background: "#e2e8f0",
           }}
@@ -140,7 +140,7 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
           style={{
             position: "absolute",
             left: 0,
-            height: 3,
+            height: 4,
             borderRadius: 2,
             background: "#3b82f6",
             width: `${fraction * 100}%`,
@@ -162,16 +162,16 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             opacity: 0,
             cursor: "pointer",
             margin: 0,
-            height: 20,
+            height: 28,
           }}
         />
         {/* Thumb indicator */}
         <div
           style={{
             position: "absolute",
-            left: `calc(${fraction * 100}% - 6px)`,
-            width: 12,
-            height: 12,
+            left: `calc(${fraction * 100}% - 7px)`,
+            width: 14,
+            height: 14,
             borderRadius: "50%",
             background: "#3b82f6",
             border: "2px solid #fff",
