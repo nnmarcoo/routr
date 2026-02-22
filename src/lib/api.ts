@@ -82,10 +82,13 @@ function legsToResult(data: Record<string, unknown>): RouteResult | null {
   for (const leg of legs) {
     allCoords.push(...decodePolyline(leg.shape, 6));
   }
+  // Valhalla returns pedestrian walk time. Compute running time instead:
+  // 9:30 /mile = 570 seconds/mile is a comfortable easy-run pace.
+  const runningMinutes = summary.length * (570 / 60);
   return {
     coordinates: allCoords,
     distanceMiles: summary.length,
-    durationMinutes: summary.time / 60,
+    durationMinutes: runningMinutes,
   };
 }
 
@@ -165,6 +168,7 @@ type WalkGraph = Map<number, GraphNode>;
 interface DfsCandidate {
   nodeIds: number[];
   totalDist: number;
+  uniqueCells: number; // number of distinct ~500m grid cells visited
 }
 
 function computeOverpassRadius(targetMeters: number): number {
@@ -181,8 +185,6 @@ async function fetchWalkableGraph(
 ): Promise<WalkGraph> {
   try {
     const r = Math.round(radiusMeters);
-    // "out geom" embeds full node geometry directly into each way element,
-    // giving us every shape point at full OSM coordinate precision.
     const query = `[out:json][timeout:30];(way["highway"~"^(footway|path|pedestrian|residential|living_street|cycleway|track|service|unclassified|tertiary|secondary)$"]["access"!="private"](around:${r},${centerLat},${centerLon}););out geom;`;
     const res = await fetch("https://overpass.kumi.systems/api/interpreter", {
       method: "POST",
@@ -197,14 +199,28 @@ async function fetchWalkableGraph(
       geometry?: Array<{ lat: number; lon: number }>;
     }> = data.elements ?? [];
 
-    // OSM stores coordinates at 7 decimal places (≈1cm precision).
-    // Two geometry points with identical lat/lon strings are the *same OSM node*,
-    // so we can detect intersections in O(n) using a coordinate → canonical-ID map,
-    // without any distance calculations.
     const coordKey = (lat: number, lon: number) =>
       `${lat.toFixed(7)},${lon.toFixed(7)}`;
 
-    // Pass 1: assign every unique coordinate a stable canonical node ID.
+    // Pass 1: count how many ways reference each coordinate.
+    // A coordinate referenced by 2+ ways is a true intersection.
+    // The first and last point of every way are endpoints (kept regardless).
+    const wayRefCount = new Map<string, number>();
+    const endpointKeys = new Set<string>();
+
+    for (const el of elements) {
+      if (el.type !== "way" || !el.geometry || el.geometry.length < 2) continue;
+      const pts = el.geometry;
+      endpointKeys.add(coordKey(pts[0].lat, pts[0].lon));
+      endpointKeys.add(coordKey(pts[pts.length - 1].lat, pts[pts.length - 1].lon));
+      for (const { lat, lon } of pts) {
+        const k = coordKey(lat, lon);
+        wayRefCount.set(k, (wayRefCount.get(k) ?? 0) + 1);
+      }
+    }
+
+    // Pass 2: assign IDs only to junction nodes (intersection + endpoints).
+    // Shape-only points (degree-2, interior to a single way) are skipped.
     let nextId = 1;
     const coordToId = new Map<string, number>();
     const graph: WalkGraph = new Map();
@@ -220,9 +236,11 @@ async function fetchWalkableGraph(
       return id;
     };
 
-    // Pass 2: build edges. Because getOrCreate deduplicates by coordinate,
-    // two ways sharing a node automatically get the same ID — intersections
-    // are connected for free, including T-junctions and midpoint crossings.
+    const isJunction = (lat: number, lon: number): boolean => {
+      const k = coordKey(lat, lon);
+      return (wayRefCount.get(k) ?? 0) > 1 || endpointKeys.has(k);
+    };
+
     const addEdge = (aId: number, bId: number, d: number) => {
       const a = graph.get(aId)!;
       const b = graph.get(bId)!;
@@ -232,20 +250,28 @@ async function fetchWalkableGraph(
         b.neighbors.push({ nodeId: aId, distMeters: d });
     };
 
+    // Pass 3: walk each way, accumulating distance across shape points,
+    // and only emit an edge when we reach the next junction node.
+    // This contracts all shape-only interior points into direct junction→junction edges.
     for (const el of elements) {
       if (el.type !== "way" || !el.geometry || el.geometry.length < 2) continue;
       const pts = el.geometry;
-      let prevId = getOrCreate(pts[0].lat, pts[0].lon);
+
+      let segStartId = getOrCreate(pts[0].lat, pts[0].lon);
+      let accDist = 0;
+      let prevLat = pts[0].lat, prevLon = pts[0].lon;
+
       for (let i = 1; i < pts.length; i++) {
-        const curId = getOrCreate(pts[i].lat, pts[i].lon);
-        const d = haversineMeters(
-          pts[i - 1].lat,
-          pts[i - 1].lon,
-          pts[i].lat,
-          pts[i].lon,
-        );
-        addEdge(prevId, curId, d);
-        prevId = curId;
+        const { lat, lon } = pts[i];
+        accDist += haversineMeters(prevLat, prevLon, lat, lon);
+        prevLat = lat; prevLon = lon;
+
+        if (isJunction(lat, lon)) {
+          const curId = getOrCreate(lat, lon);
+          if (accDist > 0) addEdge(segStartId, curId, accDist);
+          segStartId = curId;
+          accDist = 0;
+        }
       }
     }
 
@@ -272,51 +298,27 @@ function snapToNearestNode(
   return bestId;
 }
 
-// ─── DFS loop finder ─────────────────────────────────────────────────────────
+// ─── Loop finder ──────────────────────────────────────────────────────────────
 //
-// Uses parent-pointer reconstruction instead of copying path arrays on every
-// push. Each stack frame stores only (nodeId, parentFrameIndex, dist,
-// visitedEdges, cellCounts) — no O(n) copies, no GC pressure.
+// True recursive DFS with backtracking — no set/map copying per step.
+// Shared mutable state (path, visitedEdges, cellCounts) is mutated on entry
+// and restored on exit, so memory is O(depth) not O(nodes_explored).
 //
-// Cell-count map (O(1) lookup) replaces the O(path.length) scan.
-//
-// Each DFS run now collects up to MAX_RESULTS_PER_RUN valid closures instead
-// of stopping at the first one — giving much more variety per directional pass.
-// At intersection nodes (degree ≥ 3) neighbors are shuffled so the DFS
-// branches in structurally different directions.
+// Key properties:
+//  1. Undirected edge blocking: edgeKey(a,b) = min|max, so A→B and B→A share
+//     one key. A road walked either way is blocked in both directions.
+//  2. No U-turns: we never step back to the node we just came from.
+//  3. Phase-aware bias: outbound half angles away from start (runAngle),
+//     return half angles back toward start — produces clean rounded loops.
+//  4. Per-cell cap: limits how many times the path re-enters a ~500m cell.
 
-function findIntersectionNodes(graph: WalkGraph): Set<number> {
-  const intersections = new Set<number>();
-  for (const [id, node] of graph) {
-    if (node.neighbors.length >= 3) intersections.add(id);
-  }
-  return intersections;
-}
-
-interface DfsFrame {
-  nodeId: number;
-  parentIdx: number; // index into frames[], -1 for root
-  depth: number;     // distance from root in hops
-  dist: number;
-  visitedEdges: Set<string>;
-  cellCounts: Map<string, number>; // ~500m grid cell → visit count
-}
-
-function reconstructPath(frames: DfsFrame[], frameIdx: number): number[] {
-  const path: number[] = [];
-  let idx = frameIdx;
-  while (idx !== -1) {
-    path.push(frames[idx].nodeId);
-    idx = frames[idx].parentIdx;
-  }
-  path.reverse();
-  return path;
-}
-
+// ~150m grid — meaningful at the junction-graph scale (junctions are 50-200m apart).
 function cellKey(lon: number, lat: number): string {
-  // ~500m grid — coarse enough that the DFS can leave the start area
-  // before hitting the revisit cap, while still preventing tight loops.
-  return `${Math.round(lon / 0.005)},${Math.round(lat / 0.005)}`;
+  return `${Math.round(lon / 0.0015)},${Math.round(lat / 0.0015)}`;
+}
+
+function edgeKey(a: number, b: number): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
 function runSingleDfs(
@@ -329,137 +331,104 @@ function runSingleDfs(
   polygon: [number, number][] | undefined,
   globalUsedEdges: Set<string>,
   runIndex: number,
-  numCandidates: number,
-  intersectionNodes: Set<number>,
+  numRuns: number,
 ): DfsCandidate[] {
-  // Depth limit: average OSM segment in dense areas is ~10-20m, so a 5-mile
-  // (8km) route needs at most ~800 segments. Allow 20% headroom.
-  const MAX_DEPTH = Math.min(1000, Math.ceil((targetMeters / 15) * 1.2));
-  const MAX_NODES_EXPLORED = 200_000;
-  // Collect up to this many distinct closures per directional pass
-  const MAX_RESULTS_PER_RUN = 4;
-  const runAngle = (runIndex / numCandidates) * 2 * Math.PI;
+  // Junction graph edges average ~100m, so depth budget = target / 100 with headroom.
+  const MAX_DEPTH = Math.min(300, Math.ceil((targetMeters / 80) * 1.5));
+  const MAX_RESULTS = 5;
+  const runAngle = (runIndex / numRuns) * 2 * Math.PI;
 
-  const frames: DfsFrame[] = [];
-  const stack: number[] = [];
+  // Shared mutable state — mutated and restored on each recursive call.
+  const path: number[] = [startId];
+  const visitedEdges = new Set<string>();
+  const cellCounts = new Map<string, number>();
+  cellCounts.set(cellKey(startNode.lon, startNode.lat), 1);
 
-  const rootFrame: DfsFrame = {
-    nodeId: startId,
-    parentIdx: -1,
-    depth: 0,
-    dist: 0,
-    visitedEdges: new Set<string>(),
-    cellCounts: new Map<string, number>(),
-  };
-  frames.push(rootFrame);
-  stack.push(0);
-
-  let nodesExplored = 0;
   const results: DfsCandidate[] = [];
 
-  while (
-    stack.length > 0 &&
-    nodesExplored < MAX_NODES_EXPLORED &&
-    results.length < MAX_RESULTS_PER_RUN
-  ) {
-    nodesExplored++;
-    const frameIdx = stack.pop()!;
-    const frame = frames[frameIdx];
-    const { nodeId, depth, dist, visitedEdges, cellCounts } = frame;
-    const node = graph.get(nodeId);
-    if (!node) continue;
+  function dfs(nodeId: number, parentId: number, dist: number, depth: number) {
+    if (results.length >= MAX_RESULTS) return;
+    if (depth > MAX_DEPTH) return;
 
-    if (depth > MAX_DEPTH) continue;
+    const node = graph.get(nodeId)!;
 
-    // Check if we can close the loop — only after we've gone far enough
+    // Check loop closure — must be within ~200m of start (about 2 junction hops)
     if (depth > 4 && dist >= minDist && dist <= maxDist) {
-      const closeDist = haversineMeters(
-        node.lat, node.lon, startNode.lat, startNode.lon,
-      );
-      if (closeDist < targetMeters * 0.08) {
-        // Valid closure — record it and keep exploring for more
-        const nodeIds = [...reconstructPath(frames, frameIdx), startId];
-        results.push({ nodeIds, totalDist: dist });
-        // Don't continue expanding from this frame — the loop is closed
-        continue;
+      const closeDist = haversineMeters(node.lat, node.lon, startNode.lat, startNode.lon);
+      if (closeDist < Math.min(200, targetMeters * 0.05)) {
+        results.push({
+          nodeIds: [...path, startId],
+          totalDist: dist,
+          uniqueCells: cellCounts.size,
+        });
+        return; // don't expand further from a closed loop
       }
     }
 
-    if (dist > maxDist) continue;
+    if (dist > maxDist) return;
 
-    const isIntersection = intersectionNodes.has(nodeId);
+    const phase = dist / maxDist;
 
-    // At intersections: shuffle neighbors so the DFS branches in different
-    // directions on each call, producing structurally distinct routes.
-    // On plain segments: sort by angle-alignment so we trend toward runAngle.
-    let neighbors = [...node.neighbors];
-    if (isIntersection) {
-      // Fisher-Yates shuffle — O(n), deterministic per runIndex so reruns
-      // with the same seed explore the same order (reproducible enough)
-      for (let i = neighbors.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.abs(Math.sin(runIndex * 13 + i * 7 + depth)) * (i + 1));
-        [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
-      }
-    } else {
-      neighbors.sort((a, b) => {
-        const aUsed = globalUsedEdges.has(`${nodeId}-${a.nodeId}`) ? 1 : 0;
-        const bUsed = globalUsedEdges.has(`${nodeId}-${b.nodeId}`) ? 1 : 0;
-        if (aUsed !== bUsed) return aUsed - bUsed;
-        const aN = graph.get(a.nodeId);
-        const bN = graph.get(b.nodeId);
-        if (!aN || !bN) return 0;
-        const aAngle = Math.atan2(aN.lat - node.lat, aN.lon - node.lon);
-        const bAngle = Math.atan2(bN.lat - node.lat, bN.lon - node.lon);
-        const aDiff = Math.abs(((aAngle - runAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
-        const bDiff = Math.abs(((bAngle - runAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
-        return aDiff - bDiff;
-      });
-    }
+    // Score and sort neighbors — best first (we iterate in order, no reversal needed)
+    const neighbors = node.neighbors
+      .map(({ nodeId: nid, distMeters }) => {
+        if (nid === parentId) return null; // no U-turn
+        const ek = edgeKey(nodeId, nid);
+        if (visitedEdges.has(ek)) return null; // undirected block
 
-    // Push children in reverse so the first-preferred is explored first (LIFO)
-    for (let i = neighbors.length - 1; i >= 0; i--) {
-      const { nodeId: nextId, distMeters } = neighbors[i];
-      const edgeKey = `${nodeId}-${nextId}`;
-      if (visitedEdges.has(edgeKey)) continue;
+        const nn = graph.get(nid);
+        if (!nn) return null;
 
-      const nextNode = graph.get(nextId);
-      if (!nextNode) continue;
+        if (polygon && polygon.length >= 3 &&
+            !isPointInPolygon([nn.lon, nn.lat], polygon)) return null;
 
-      if (polygon && polygon.length >= 3) {
-        if (!isPointInPolygon([nextNode.lon, nextNode.lat], polygon)) continue;
-      }
+        const newDist = dist + distMeters;
 
-      const newDist = dist + distMeters;
+        // Admissibility: can we still close the loop within budget?
+        const closingDist = haversineMeters(nn.lat, nn.lon, startNode.lat, startNode.lon);
+        if (newDist + closingDist > maxDist * 1.15) return null;
 
-      // Admissibility pruning: even if we beeline back, would we overshoot?
-      const closingDist = haversineMeters(
-        nextNode.lat, nextNode.lon, startNode.lat, startNode.lon,
-      );
-      if (newDist + closingDist > maxDist * 1.15) continue;
+        const ck = cellKey(nn.lon, nn.lat);
+        if ((cellCounts.get(ck) ?? 0) >= 2) return null;
 
-      // Cell backtrack limit: O(1) via inherited count map
-      const ck = cellKey(nextNode.lon, nextNode.lat);
-      if ((cellCounts.get(ck) ?? 0) >= 3) continue;
+        // Phase-aware angle scoring
+        const neighborAngle = Math.atan2(nn.lat - node.lat, nn.lon - node.lon);
+        const targetAngle = phase < 0.5
+          ? runAngle
+          : Math.atan2(startNode.lat - node.lat, startNode.lon - node.lon);
+        const angleDiff = Math.abs(
+          ((neighborAngle - targetAngle + 3 * Math.PI) % (2 * Math.PI)) - Math.PI,
+        );
 
-      // Build child frame — copy only the small sets/maps (not path arrays)
-      const newVisited = new Set(visitedEdges);
-      newVisited.add(edgeKey);
-      const newCells = new Map(cellCounts);
-      newCells.set(ck, (newCells.get(ck) ?? 0) + 1);
+        // Strongly prefer roads not used by prior runs
+        const staleness = globalUsedEdges.has(ek) ? 1.5 : 0;
+        const score = angleDiff + staleness;
 
-      const childFrame: DfsFrame = {
-        nodeId: nextId,
-        parentIdx: frameIdx,
-        depth: depth + 1,
-        dist: newDist,
-        visitedEdges: newVisited,
-        cellCounts: newCells,
-      };
-      frames.push(childFrame);
-      stack.push(frames.length - 1);
+        return { nid, distMeters, ek, ck, score };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => a.score - b.score); // best first
+
+    for (const { nid, distMeters, ek, ck } of neighbors) {
+      if (results.length >= MAX_RESULTS) return;
+
+      // Mutate state — enter
+      path.push(nid);
+      visitedEdges.add(ek);
+      cellCounts.set(ck, (cellCounts.get(ck) ?? 0) + 1);
+
+      dfs(nid, nodeId, dist + distMeters, depth + 1);
+
+      // Restore state — backtrack
+      path.pop();
+      visitedEdges.delete(ek);
+      const prev = cellCounts.get(ck)! - 1;
+      if (prev === 0) cellCounts.delete(ck);
+      else cellCounts.set(ck, prev);
     }
   }
 
+  dfs(startId, -1, 0, 0);
   return results;
 }
 
@@ -475,7 +444,6 @@ async function dfsLoopCandidates(
   const startNode = graph.get(startId);
   if (!startNode) return [];
 
-  const intersectionNodes = findIntersectionNodes(graph);
   const results: DfsCandidate[] = [];
   const globalUsedEdges = new Set<string>();
 
@@ -483,14 +451,12 @@ async function dfsLoopCandidates(
     const candidates = runSingleDfs(
       graph, startId, startNode, targetMeters,
       minDist, maxDist, polygon, globalUsedEdges, run, numRuns,
-      intersectionNodes,
     );
     for (const candidate of candidates) {
       results.push(candidate);
-      // Mark this candidate's edges as used so later runs explore fresh roads
+      // Mark edges used (undirected) so later runs are pushed onto fresh roads
       for (let i = 0; i < candidate.nodeIds.length - 1; i++) {
-        globalUsedEdges.add(`${candidate.nodeIds[i]}-${candidate.nodeIds[i + 1]}`);
-        globalUsedEdges.add(`${candidate.nodeIds[i + 1]}-${candidate.nodeIds[i]}`);
+        globalUsedEdges.add(edgeKey(candidate.nodeIds[i], candidate.nodeIds[i + 1]));
       }
     }
   }
@@ -824,8 +790,10 @@ async function fetchLoopFromCandidate(
       if (routeInsideFraction(result.coordinates, polygon) < 0.8) return null;
     }
 
-    (result as RouteResult & { _backtrack?: number })._backtrack =
+    (result as RouteResult & { _backtrack?: number; _uniqueCells?: number })._backtrack =
       backtrachRatio(result.coordinates);
+    (result as RouteResult & { _backtrack?: number; _uniqueCells?: number })._uniqueCells =
+      candidate.uniqueCells;
 
     return result;
   } catch {
@@ -891,10 +859,29 @@ export async function getLoopRoutes(
   const overpassRadius = computeOverpassRadius(targetMeters);
   const [startLon, startLat] = start;
 
+  // When a polygon is drawn, center the graph fetch on the polygon's centroid
+  // and use a radius that covers the entire polygon. This ensures roads inside
+  // the drawn region are actually fetched even if the start is outside/at the edge.
+  let graphCenterLat = startLat;
+  let graphCenterLon = startLon;
+  let graphRadius = overpassRadius;
+
+  if (polygon && polygon.length >= 3) {
+    const lons = polygon.map(([ln]) => ln);
+    const lats = polygon.map(([, lt]) => lt);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    graphCenterLon = (minLon + maxLon) / 2;
+    graphCenterLat = (minLat + maxLat) / 2;
+    // Radius = distance from centroid to farthest corner, plus 20% buffer
+    const cornerDist = haversineMeters(graphCenterLat, graphCenterLon, maxLat, maxLon);
+    graphRadius = Math.max(overpassRadius, cornerDist * 1.2);
+  }
+
   // Fetch highway geometry (for fallback) and walkable graph in parallel
   const [highways, graph] = await Promise.all([
     fetchHighwayGeometry(startLat, startLon, overpassRadius * 1.2),
-    fetchWalkableGraph(startLat, startLon, overpassRadius),
+    fetchWalkableGraph(graphCenterLat, graphCenterLon, graphRadius),
   ]);
 
   let valid: RouteResult[] = [];
@@ -943,14 +930,19 @@ export async function getLoopRoutes(
     }
   }
 
-  // Sort: primarily by closeness to target distance, secondarily by low backtrack ratio
+  // Sort: primarily by closeness to target distance, then wider routes first
+  // (more unique cells = broader area coverage), then low backtrack ratio.
+  type ScoredRoute = RouteResult & { _backtrack?: number; _uniqueCells?: number };
   valid.sort((a, b) => {
     const distScore =
       Math.abs(a.distanceMiles - targetMiles) -
       Math.abs(b.distanceMiles - targetMiles);
     if (Math.abs(distScore) > 0.3) return distScore;
-    const ab = (a as RouteResult & { _backtrack?: number })._backtrack ?? 0;
-    const bb = (b as RouteResult & { _backtrack?: number })._backtrack ?? 0;
+    const auc = (a as ScoredRoute)._uniqueCells ?? 0;
+    const buc = (b as ScoredRoute)._uniqueCells ?? 0;
+    if (auc !== buc) return buc - auc; // more unique cells = better
+    const ab = (a as ScoredRoute)._backtrack ?? 0;
+    const bb = (b as ScoredRoute)._backtrack ?? 0;
     return ab - bb;
   });
 
