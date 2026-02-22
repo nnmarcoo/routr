@@ -7,7 +7,6 @@ interface RouteTimelineProps {
   route: RouteResult;
 }
 
-// Accumulate per-segment distances so we can map a fraction to a coordinate.
 function buildDistanceTable(coords: [number, number][]): {
   cumulative: number[];
   total: number;
@@ -23,7 +22,6 @@ function buildDistanceTable(coords: [number, number][]): {
   return { cumulative, total: cumulative[cumulative.length - 1] };
 }
 
-// Interpolate position along the route at fraction t ∈ [0, 1].
 function positionAtFraction(
   coords: [number, number][],
   cumulative: number[],
@@ -48,7 +46,6 @@ function positionAtFraction(
   return [ax + (bx - ax) * frac, ay + (by - ay) * frac];
 }
 
-// Create a small circular marker element.
 function makeMarkerEl(): HTMLElement {
   const el = document.createElement("div");
   el.style.cssText = `
@@ -66,13 +63,11 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
   const markerRef = useRef<Marker | null>(null);
   const tableRef = useRef<{ cumulative: number[]; total: number } | null>(null);
 
-  // Build distance table whenever route changes.
   useEffect(() => {
     tableRef.current = buildDistanceTable(route.coordinates);
     setFraction(0);
   }, [route]);
 
-  // Manage the marker lifecycle.
   useEffect(() => {
     if (!mapApi) return;
     const map = mapApi.getMap();
@@ -88,7 +83,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
     };
   }, [mapApi, route]);
 
-  // Move marker when fraction changes.
   useEffect(() => {
     if (
       !markerRef.current ||
@@ -115,7 +109,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {/* Progress bar / scrubber */}
       <div
         style={{
           position: "relative",
@@ -124,7 +117,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
           alignItems: "center",
         }}
       >
-        {/* Track */}
         <div
           style={{
             position: "absolute",
@@ -135,7 +127,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             background: "#e2e8f0",
           }}
         />
-        {/* Fill */}
         <div
           style={{
             position: "absolute",
@@ -147,7 +138,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             transition: "width 0.05s",
           }}
         />
-        {/* Range input over top */}
         <input
           type="range"
           min={0}
@@ -165,7 +155,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             height: 28,
           }}
         />
-        {/* Thumb indicator */}
         <div
           style={{
             position: "absolute",
@@ -182,7 +171,6 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
         />
       </div>
 
-      {/* Stats */}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, color: "#64748b" }}>
           {distanceCovered.toFixed(2)}{" "}

@@ -152,7 +152,6 @@ function LocationField({
   );
 }
 
-// Simple CSS spinner
 function Spinner() {
   return (
     <span
@@ -191,7 +190,6 @@ export default function LocationSelect({
   const endDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startMarker = useRef<Marker | null>(null);
   const endMarker = useRef<Marker | null>(null);
-  // Track previous location IDs so we only fly when a location actually changes
   const prevStartId = useRef<number | null>(null);
   const prevEndId = useRef<number | null>(null);
 
@@ -302,7 +300,6 @@ export default function LocationSelect({
 
   return (
     <>
-      {/* Keyframe for spinner — injected once */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -342,7 +339,6 @@ export default function LocationSelect({
           )}
         </AnimatePresence>
 
-        {/* Loop toggle + button row */}
         <div
           style={{
             display: "flex",

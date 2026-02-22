@@ -80,7 +80,6 @@ export default function ToolSelect({
   const isDraggingRef = useRef(false);
   const lastClickTimeRef = useRef<number>(0);
 
-  // Effect 1: init sources/layers
   useEffect(() => {
     if (!map) return;
 
@@ -163,7 +162,6 @@ export default function ToolSelect({
     };
   }, [map]);
 
-  // Effect 2: sync polygon + vertices
   useEffect(() => {
     if (!map || !map.getSource(SRC_POLYGON)) return;
     const ring =
@@ -185,7 +183,6 @@ export default function ToolSelect({
     } as FeatureCollection<Point>);
   }, [map, polygonCoords, polygonClosed]);
 
-  // Effect 3: preview line
   useEffect(() => {
     if (!map || !map.getSource(SRC_PREVIEW)) return;
     const show =
@@ -202,7 +199,6 @@ export default function ToolSelect({
     } as Feature<LineString>);
   }, [map, cursorPreview, polygonCoords, polygonClosed]);
 
-  // Effect 4: click + dblclick
   useEffect(() => {
     if (!map) return;
     const DBLCLICK_MS = 300;
@@ -244,7 +240,6 @@ export default function ToolSelect({
     setPolygonClosed,
   ]);
 
-  // Effect 5: mousemove cursor + preview
   useEffect(() => {
     if (!map) return;
     const handleMouseMove = (e: MapMouseEvent) => {
@@ -271,7 +266,6 @@ export default function ToolSelect({
     };
   }, [map, tool, polygonClosed, polygonCoords]);
 
-  // Effect 6: vertex drag
   useEffect(() => {
     if (!map) return;
     const handleMouseDown = (e: MapMouseEvent) => {
@@ -355,7 +349,6 @@ export default function ToolSelect({
             if (map) map.getCanvas().style.cursor = "";
           }}
         >
-          {/* cursor icon */}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M4 0l16 12-7 2-4 8z" />
           </svg>
@@ -366,7 +359,6 @@ export default function ToolSelect({
           disabled={polygonClosed}
           onClick={() => setTool(1)}
         >
-          {/* pen icon */}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
           </svg>

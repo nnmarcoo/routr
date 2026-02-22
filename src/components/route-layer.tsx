@@ -62,7 +62,6 @@ export default function RouteLayer({ route }: RouteLayerProps) {
 
       if (!initializedRef.current) {
         if (!map.getSource(SRC)) {
-          // lineMetrics: true is required for line-gradient
           map.addSource(SRC, {
             type: "geojson",
             data: geojson,
@@ -91,7 +90,6 @@ export default function RouteLayer({ route }: RouteLayerProps) {
             source: SRC,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-              // Gradient: light blue (start) → royal blue (mid) → dark navy (end)
               "line-gradient": [
                 "interpolate",
                 ["linear"],

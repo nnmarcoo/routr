@@ -79,7 +79,6 @@ export default function LeftCard() {
     <>
       <RouteLayer route={selectedRoute} />
 
-      {/* Mobile floating reopen button */}
       <AnimatePresence>
         {isMobile && !open && (
           <motion.div
@@ -120,7 +119,6 @@ export default function LeftCard() {
         style={positionStyle}
       >
         <div style={panel}>
-          {/* Header */}
           <div style={header}>
             <div
               style={{
@@ -145,7 +143,6 @@ export default function LeftCard() {
             </IconButton>
           </div>
 
-          {/* Body */}
           <div
             style={{
               pointerEvents: open ? "auto" : "none",
