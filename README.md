@@ -1,10 +1,16 @@
-# routr
+<div align="center">
+  <h1>routr</h1>
+  <p><em>running route generator using real road data</em></p>
 
-**Discover running routes around you.**
+  ![Platform](https://img.shields.io/badge/platform-web-0077aa?style=for-the-badge)
+  ![License](https://img.shields.io/badge/license-GPL--3.0-0077aa?style=for-the-badge)
 
-Routr generates loop and point-to-point running routes using real road data from OpenStreetMap. Tell it where you want to run and how far, and it finds multiple route variants with different geometries so you can explore new paths.
+  **[Try it live](https://nnmarcoo.github.io/routr)**
+</div>
 
-**[Try it live](https://nnmarcoo.github.io/routr)**
+---
+
+Generates loop and point-to-point running routes from OpenStreetMap data. Specify a starting location and target distance, and it finds multiple route variants with distinct geometries.
 
 ---
 
